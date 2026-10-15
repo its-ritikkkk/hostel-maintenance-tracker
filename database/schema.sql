@@ -1,0 +1,1 @@
+-- MariaDB schema will be defined here.
