@@ -1,145 +1,202 @@
 <?php
-// ===============================================================
-// index.php - Home / Landing Page
-// ===============================================================
-// Welcome portal for students and hostel wardens of IIT (ISM) Dhanbad.
-// Features multi-hostel management across Aquamarine, Amber, Jasper, etc.
+// ====================================================================
+// File: index.php
+// Purpose: Main landing page for Hostel Maintenance and Complaint Tracker
+// Project: College Web Development Lab (P4)
+// Hostel: Aquamarine Hostel, IIT (ISM) Dhanbad
+// ====================================================================
 
+session_start();
 require_once __DIR__ . '/config/db.php';
-require_once __DIR__ . '/includes/auth.php';
 
-$totalComplaints = 0;
-$resolvedComplaints = 0;
-$activeComplaints = 0;
+$pdo = getDbConnection();
 
-try {
-    $db = getDbConnection();
-    $totalComplaints = (int) $db->query('SELECT COUNT(*) FROM complaints')->fetchColumn();
-    $resolvedComplaints = (int) $db->query("SELECT COUNT(*) FROM complaints WHERE status = 'Resolved'")->fetchColumn();
-    $activeComplaints = (int) $db->query("SELECT COUNT(*) FROM complaints WHERE status IN ('Submitted', 'In Progress')")->fetchColumn();
-} catch (Exception $e) {
-    error_log('Landing stats error: ' . $e->getMessage());
-}
+// Fetch summary metrics for Aquamarine Hostel
+$totalCount = $pdo->query('SELECT COUNT(*) FROM complaints')->fetchColumn();
+$submittedCount = $pdo->query("SELECT COUNT(*) FROM complaints WHERE status = 'Submitted'")->fetchColumn();
+$inProgressCount = $pdo->query("SELECT COUNT(*) FROM complaints WHERE status = 'In Progress'")->fetchColumn();
+$resolvedCount = $pdo->query("SELECT COUNT(*) FROM complaints WHERE status = 'Resolved'")->fetchColumn();
 
-$pageTitle = 'Home';
-include __DIR__ . '/includes/header.php';
+// Fetch recent 6 complaints with student info
+$stmtRecent = $pdo->query('
+    SELECT c.id, c.title, c.description, c.category, c.status, c.created_at,
+           s.name AS student_name, s.admission_no
+    FROM complaints c
+    JOIN students s ON c.student_id = s.id
+    ORDER BY c.created_at DESC, c.id DESC
+    LIMIT 6
+');
+$recentComplaints = $stmtRecent->fetchAll();
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hostel Maintenance and Complaint Tracker | Aquamarine Hostel, IIT (ISM) Dhanbad</title>
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
 
-<div style="max-width: 1000px; margin: 0 auto;">
-    <!-- Hero Banner -->
-    <div style="background: linear-gradient(135deg, #0f2b5c 0%, #1e3a8a 100%); color: #ffffff; padding: 3rem 2rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); margin-bottom: 2.5rem; text-align: center;">
-        <span style="background: rgba(217, 119, 6, 0.25); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 0.35rem 0.85rem; border-radius: var(--radius-full); display: inline-block; margin-bottom: 1rem;">
-            Hostel Affairs & Multi-Warden Desk
-        </span>
-        <h2 style="font-size: 2.2rem; font-weight: 800; line-height: 1.25; margin-bottom: 0.75rem;">
-            Hostel Maintenance & Complaint Tracker
-        </h2>
-        <p style="font-size: 1.05rem; color: #cbd5e1; max-width: 680px; margin: 0 auto 1.75rem auto;">
-            Indian Institute of Technology (Indian School of Mines), Dhanbad. Dedicated warden portals for Aquamarine, Amber, Jasper, and campus hostels with live asynchronous status tracking.
+    <!-- Header Bar with Fixed Hostel Name -->
+    <header class="header-bar">
+        <div class="header-container">
+            <div class="brand-info">
+                <h1>🔧 Hostel Maintenance and Complaint Tracker</h1>
+                <span class="hostel-badge">📍 Aquamarine Hostel, IIT (ISM) Dhanbad</span>
+            </div>
+            <nav class="nav-links">
+                <a href="index.php" class="nav-link active">Home</a>
+                <a href="student.php" class="nav-link">Student Portal</a>
+                <a href="warden.php" class="nav-link">Warden Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-wrapper">
+
+        <!-- Hero Section -->
+        <section class="hero-banner">
+            <h2>Welcome to Aquamarine Hostel Helpdesk</h2>
+            <p>
+                A centralized maintenance tracking system for students and administration of Aquamarine Hostel, 
+                IIT (ISM) Dhanbad. Submit issues, track resolutions, and monitor live status updates asynchronously.
+            </p>
+            <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+                <a href="student.php" class="btn btn-primary">📝 Submit or View Complaint</a>
+                <a href="warden.php" class="btn btn-secondary">🛡️ Warden Login / Dashboard</a>
+            </div>
+        </section>
+
+        <!-- Metrics Overview Grid -->
+        <section class="stats-grid">
+            <div class="stat-card total">
+                <span class="stat-label">Total Complaints</span>
+                <span class="stat-number"><?php echo (int)$totalCount; ?></span>
+            </div>
+            <div class="stat-card submitted">
+                <span class="stat-label">Submitted (Pending)</span>
+                <span class="stat-number"><?php echo (int)$submittedCount; ?></span>
+            </div>
+            <div class="stat-card in-progress">
+                <span class="stat-label">In Progress</span>
+                <span class="stat-number"><?php echo (int)$inProgressCount; ?></span>
+            </div>
+            <div class="stat-card resolved">
+                <span class="stat-label">Resolved</span>
+                <span class="stat-number"><?php echo (int)$resolvedCount; ?></span>
+            </div>
+        </section>
+
+        <!-- Role Portals Grid -->
+        <section class="portal-cards-grid">
+            <div class="portal-card">
+                <div>
+                    <h3>🎓 Student Portal</h3>
+                    <p>
+                        Are you an Aquamarine Hostel resident facing electrical, plumbing, network, or housekeeping issues? 
+                        Lodge a complaint in seconds and watch your resolution progress live without manual page reloads.
+                    </p>
+                </div>
+                <a href="student.php" class="btn btn-primary">Enter Student Portal &rarr;</a>
+            </div>
+
+            <div class="portal-card">
+                <div>
+                    <h3>👔 Warden (Admin) Portal</h3>
+                    <p>
+                        Administer all complaints logged for Aquamarine Hostel. Filter by category, review resident issue descriptions, 
+                        and update work statuses from <em>Submitted</em> to <em>In Progress</em> or <em>Resolved</em>.
+                    </p>
+                </div>
+                <a href="warden.php" class="btn btn-secondary">Enter Warden Dashboard &rarr;</a>
+            </div>
+        </section>
+
+        <!-- Recent Complaints Section with Live Auto-Refresh -->
+        <section style="margin-top: 2.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 style="color: #0f172a; font-size: 1.25rem;">📋 Recent Hostel Complaints</h3>
+                <div class="refresh-status-box">
+                    <span class="pulse-dot"></span>
+                    <span>Live Auto-Refresh (5s)</span>
+                    <span style="color: #94a3b8;">|</span>
+                    <span>Synced: <span id="lastSyncTime"><?php echo date('H:i:s'); ?></span></span>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="complaint-table" id="complaintsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Complaint Details</th>
+                            <th>Category</th>
+                            <th>Student</th>
+                            <th>Date Logged</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($recentComplaints)): ?>
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <p>No complaints submitted yet for Aquamarine Hostel.</p>
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($recentComplaints as $row): 
+                                $catClass = 'cat-' . strtolower($row['category']);
+                                $statusClass = 'status-' . strtolower(str_replace(' ', '-', $row['status']));
+                            ?>
+                                <tr class="complaint-row" data-complaint-id="<?php echo (int)$row['id']; ?>" data-category="<?php echo htmlspecialchars($row['category']); ?>" data-status="<?php echo htmlspecialchars($row['status']); ?>">
+                                    <td class="complaint-id">#CMP-<?php echo str_pad($row['id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                    <td class="complaint-title-cell">
+                                        <?php echo htmlspecialchars($row['title']); ?>
+                                        <div class="complaint-desc-snippet">
+                                            <?php echo htmlspecialchars(mb_strimwidth($row['description'], 0, 75, '...')); ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="category-badge <?php echo $catClass; ?>">
+                                            <?php echo htmlspecialchars($row['category']); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($row['student_name']); ?></strong>
+                                        <div style="font-size: 0.8rem; color: #64748b;"><?php echo htmlspecialchars($row['admission_no']); ?></div>
+                                    </td>
+                                    <td style="color: #64748b; font-size: 0.85rem;">
+                                        <?php echo date('d M Y, h:i A', strtotime($row['created_at'])); ?>
+                                    </td>
+                                    <td>
+                                        <span 
+                                            class="badge status-badge <?php echo $statusClass; ?>" 
+                                            data-complaint-id="<?php echo (int)$row['id']; ?>"
+                                            data-current-status="<?php echo htmlspecialchars($row['status']); ?>"
+                                        >
+                                            <?php echo htmlspecialchars($row['status']); ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer-bar">
+        <p>
+            <strong>Hostel Maintenance and Complaint Tracker</strong> &bull; Aquamarine Hostel, IIT (ISM) Dhanbad<br>
+            Developed with plain HTML, CSS, JavaScript, PHP, and MariaDB.
         </p>
+    </footer>
 
-        <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
-            <?php if (isLoggedIn()): ?>
-                <?php if (getCurrentUserRole() === 'admin'): ?>
-                    <a href="<?= BASE_URL ?>/admin/dashboard.php" class="btn btn-secondary" style="font-size: 1rem; padding: 0.65rem 1.5rem;">
-                        Go to Warden Dashboard &rarr;
-                    </a>
-                <?php else: ?>
-                    <a href="<?= BASE_URL ?>/student/dashboard.php" class="btn btn-secondary" style="font-size: 1rem; padding: 0.65rem 1.5rem;">
-                        Go to Student Dashboard &rarr;
-                    </a>
-                    <a href="<?= BASE_URL ?>/student/create_complaint.php" class="btn btn-outline" style="color: #ffffff; border-color: rgba(255,255,255,0.4); font-size: 1rem; padding: 0.65rem 1.5rem;">
-                        + Lodge Maintenance Request
-                    </a>
-                <?php endif; ?>
-            <?php else: ?>
-                <a href="<?= BASE_URL ?>/auth/login.php" class="btn btn-secondary" style="font-size: 1rem; padding: 0.65rem 1.5rem;">
-                    Sign In (Warden / Student) &rarr;
-                </a>
-                <a href="<?= BASE_URL ?>/auth/register.php" class="btn btn-outline" style="color: #ffffff; border-color: rgba(255,255,255,0.4); font-size: 1rem; padding: 0.65rem 1.5rem;">
-                    New Student Registration
-                </a>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <!-- Live Stats -->
-    <div class="stats-grid">
-        <div class="stat-card total">
-            <div class="stat-info">
-                <p>Campus Complaints</p>
-                <h3><?= $totalComplaints ?></h3>
-            </div>
-            <div class="stat-icon">📋</div>
-        </div>
-        <div class="stat-card inprogress">
-            <div class="stat-info">
-                <p>Active Maintenance</p>
-                <h3><?= $activeComplaints ?></h3>
-            </div>
-            <div class="stat-icon">⚙️</div>
-        </div>
-        <div class="stat-card resolved">
-            <div class="stat-info">
-                <p>Issues Resolved</p>
-                <h3><?= $resolvedComplaints ?></h3>
-            </div>
-            <div class="stat-icon">✅</div>
-        </div>
-    </div>
-
-    <!-- Multi-Hostel Architecture Highlights -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
-        <div style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏛️</div>
-            <h3 style="font-size: 1.1rem; color: var(--primary); margin-bottom: 0.4rem;">Dedicated Hostel Wardens</h3>
-            <p style="font-size: 0.88rem; color: var(--text-muted);">
-                Separate administrative access for Aquamarine, Amber, and Jasper hostels. Each warden is strictly restricted to managing complaints for their assigned hostel.
-            </p>
-        </div>
-
-        <div style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔄</div>
-            <h3 style="font-size: 1.1rem; color: var(--primary); margin-bottom: 0.4rem;">Live Asynchronous Sync</h3>
-            <p style="font-size: 0.88rem; color: var(--text-muted);">
-                Built with Vanilla JavaScript Fetch API and 5-second polling. Status updates (<span class="badge badge-submitted">Submitted</span> &rarr; <span class="badge badge-in-progress">In Progress</span> &rarr; <span class="badge badge-resolved">Resolved</span>) update live without page reload.
-            </p>
-        </div>
-
-        <div style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🛡️</div>
-            <h3 style="font-size: 1.1rem; color: var(--primary); margin-bottom: 0.4rem;">Server-Side Isolation</h3>
-            <p style="font-size: 0.88rem; color: var(--text-muted);">
-                Robust security ensuring students only view their tickets, and wardens cannot tamper with or access tickets belonging to other hostels.
-            </p>
-        </div>
-    </div>
-
-    <!-- Multi-Hostel Demo Accounts Box -->
-    <div class="demo-accounts-box" style="margin-top: 2rem;">
-        <h4>Multi-Hostel Lab Evaluation Credentials</h4>
-        <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 0.75rem;">
-            Pre-configured accounts for testing multi-hostel warden isolation:
-        </p>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem;">
-            <div style="background: #ffffff; padding: 0.65rem 0.85rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.82rem;">
-                <strong>Aquamarine Warden:</strong> <code>warden.aquamarine@iitism.ac.in</code><br>
-                Password: <code>Warden@123</code>
-            </div>
-            <div style="background: #ffffff; padding: 0.65rem 0.85rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.82rem;">
-                <strong>Amber Warden:</strong> <code>warden.amber@iitism.ac.in</code><br>
-                Password: <code>Warden@123</code>
-            </div>
-            <div style="background: #ffffff; padding: 0.65rem 0.85rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.82rem;">
-                <strong>Jasper Warden:</strong> <code>warden.jasper@iitism.ac.in</code><br>
-                Password: <code>Warden@123</code>
-            </div>
-            <div style="background: #ffffff; padding: 0.65rem 0.85rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.82rem;">
-                <strong>Student (Aquamarine):</strong> <code>aarav.21je0123@iitism.ac.in</code><br>
-                Password: <code>Student@123</code>
-            </div>
-        </div>
-    </div>
-</div>
-
-<?php include __DIR__ . '/includes/footer.php'; ?>
+    <script src="assets/script.js"></script>
+</body>
+</html>

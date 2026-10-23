@@ -1,118 +1,96 @@
 <?php
-// ===============================================================
-// api/get_complaints.php - Asynchronous Complaint Fetching API
-// ===============================================================
-// Returns complaints filtered by ownership for students, or by
-// assigned hostel for wardens. Enforces multi-hostel isolation.
+// ====================================================================
+// File: api/get_complaints.php
+// Purpose: Retrieves list of complaints with optional filters
+// Project: Hostel Maintenance and Complaint Tracker
+// Hostel: Aquamarine Hostel, IIT (ISM) Dhanbad
+// ====================================================================
+
+session_start();
+require_once __DIR__ . '/../config/db.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/../includes/auth.php';
-
-// Verify authentication
-if (!isLoggedIn()) {
-    http_response_code(401);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Unauthorized. Please log in to view complaints.'
-    ]);
-    exit;
-}
-
-$role = getCurrentUserRole();
-$userId = (int) $_SESSION['user_id'];
-$wardenHostelId = getAssignedHostelId();
-
-// Release session lock immediately to avoid blocking concurrent requests
-session_write_close();
-
-// Optional filter query parameters from GET request
-$statusFilter = trim($_GET['status'] ?? '');
-$categoryFilter = trim($_GET['category'] ?? '');
-$hostelFilter = trim($_GET['hostel'] ?? '');
-$searchFilter = trim($_GET['search'] ?? '');
-
 try {
-    $db = getDbConnection();
+    $pdo = getDbConnection();
 
+    // Read query filter parameters
+    $admission_no = isset($_GET['admission_no']) ? strtoupper(trim($_GET['admission_no'])) : '';
+    $category     = isset($_GET['category']) ? trim($_GET['category']) : '';
+    $status       = isset($_GET['status']) ? trim($_GET['status']) : '';
+    $search       = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+    // Base query joining complaints with students table
     $sql = 'SELECT 
                 c.id,
                 c.student_id,
-                u.name AS student_name,
-                u.email AS student_email,
-                u.phone AS student_phone,
                 c.title,
                 c.description,
                 c.category,
-                c.hostel_id,
-                c.hostel,
-                c.room_number,
                 c.status,
-                c.admin_remarks,
                 c.created_at,
-                c.updated_at
+                s.name AS student_name,
+                s.admission_no,
+                s.email AS student_email
             FROM complaints c
-            JOIN users u ON c.student_id = u.id
+            JOIN students s ON c.student_id = s.id
             WHERE 1=1';
 
     $params = [];
 
-    // Security Rule 1: Students can ONLY view their own complaints
-    if ($role === 'student') {
-        $sql .= ' AND c.student_id = :student_id';
-        $params['student_id'] = $userId;
+    // Filter by student's admission number if provided
+    if (!empty($admission_no)) {
+        $sql .= ' AND s.admission_no = ?';
+        $params[] = $admission_no;
     }
 
-    // Security Rule 2: Multi-Hostel Warden Isolation
-    // Each warden can ONLY view complaints belonging to their assigned hostel.
-    // Server enforces this via session; any frontend parameter tampering is ignored.
-    if ($role === 'admin') {
-        if ($wardenHostelId !== null) {
-            $sql .= ' AND c.hostel_id = :warden_hostel_id';
-            $params['warden_hostel_id'] = $wardenHostelId;
-        } elseif (!empty($hostelFilter)) {
-            // Only Super Admin with null hostel_id can filter by arbitrary hostel
-            $sql .= ' AND c.hostel = :hostel';
-            $params['hostel'] = $hostelFilter;
-        }
+    // Filter by category
+    if (!empty($category) && $category !== 'All') {
+        $sql .= ' AND c.category = ?';
+        $params[] = $category;
     }
 
-    // Filter by status if provided
-    if (!empty($statusFilter) && in_array($statusFilter, getComplaintStatuses(), true)) {
-        $sql .= ' AND c.status = :status';
-        $params['status'] = $statusFilter;
+    // Filter by status
+    if (!empty($status) && $status !== 'All') {
+        $sql .= ' AND c.status = ?';
+        $params[] = $status;
     }
 
-    // Filter by category if provided
-    if (!empty($categoryFilter) && in_array($categoryFilter, getComplaintCategories(), true)) {
-        $sql .= ' AND c.category = :category';
-        $params['category'] = $categoryFilter;
+    // Optional text search
+    if (!empty($search)) {
+        $sql .= ' AND (c.title LIKE ? OR c.description LIKE ? OR s.name LIKE ? OR s.admission_no LIKE ?)';
+        $searchTerm = '%' . $search . '%';
+        $params[] = $searchTerm;
+        $params[] = $searchTerm;
+        $params[] = $searchTerm;
+        $params[] = $searchTerm;
     }
 
-    // Search query in title or description
-    if (!empty($searchFilter)) {
-        $sql .= ' AND (c.title LIKE :search OR c.description LIKE :search OR u.name LIKE :search)';
-        $params['search'] = '%' . $searchFilter . '%';
-    }
+    // Sort newest complaints first
+    $sql .= ' ORDER BY c.created_at DESC, c.id DESC';
 
-    $sql .= ' ORDER BY c.created_at DESC';
-
-    $stmt = $db->prepare($sql);
+    $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $complaints = $stmt->fetchAll();
 
+    // Format dates nicely for readable display
+    $formatted = array_map(function($item) {
+        $timestamp = strtotime($item['created_at']);
+        $item['formatted_date'] = date('d M Y, h:i A', $timestamp);
+        return $item;
+    }, $complaints);
+
     echo json_encode([
         'success'    => true,
-        'count'      => count($complaints),
-        'complaints' => $complaints
+        'count'      => count($formatted),
+        'complaints' => $formatted
     ]);
+
 } catch (PDOException $e) {
-    error_log('API get_complaints error: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => 'Failed to load complaints from the database.'
+        'message' => 'Could not fetch complaints: ' . $e->getMessage()
     ]);
 }
 ?>

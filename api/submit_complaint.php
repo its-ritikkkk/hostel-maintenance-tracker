@@ -1,150 +1,148 @@
 <?php
-// ===============================================================
-// api/submit_complaint.php - Asynchronous Complaint Submission API
-// ===============================================================
-// Receives complaint data from Fetch API, validates inputs, associates
-// the complaint with the selected hostel ID, and inserts with status 'Submitted'.
+// ====================================================================
+// File: api/submit_complaint.php
+// Purpose: Handles saving a new student maintenance complaint
+// Project: Hostel Maintenance and Complaint Tracker
+// Hostel: Aquamarine Hostel, IIT (ISM) Dhanbad
+// ====================================================================
 
-header('Content-Type: application/json; charset=utf-8');
-
+session_start();
 require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/../includes/auth.php';
 
-// Only authenticated students can submit complaints
-if (!isLoggedIn() || getCurrentUserRole() !== 'student') {
-    http_response_code(403);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Unauthorized: Only logged-in students can lodge complaints.'
-    ]);
-    exit;
+// Detect if request expects JSON (e.g. sent via fetch API)
+$isJsonRequest = (
+    (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
+    (!empty($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) ||
+    isset($_POST['is_ajax'])
+);
+
+// If JSON body was sent, parse it
+if (!empty($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) {
+    $rawInput = file_get_contents('php://input');
+    $data = json_decode($rawInput, true) ?? [];
+} else {
+    $data = $_POST;
 }
 
-$rawBody = file_get_contents('php://input');
-$input = json_decode($rawBody, true);
-if (!is_array($input)) {
-    $input = $_POST;
+// Retrieve and sanitize inputs
+$name         = trim($data['name'] ?? '');
+$admission_no = strtoupper(trim($data['admission_no'] ?? ''));
+$email        = trim($data['email'] ?? '');
+$title        = trim($data['title'] ?? '');
+$category     = trim($data['category'] ?? '');
+$description  = trim($data['description'] ?? '');
+
+$allowedCategories = ['Electrical', 'Plumbing', 'Network', 'Housekeeping'];
+
+// Server-side validation
+$errors = [];
+
+if (empty($name)) {
+    $errors[] = 'Student name is required.';
+}
+if (empty($admission_no)) {
+    $errors[] = 'Admission number is required.';
+}
+if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $errors[] = 'A valid email address is required.';
+}
+if (empty($title)) {
+    $errors[] = 'Complaint title is required.';
+}
+if (empty($category) || !in_array($category, $allowedCategories, true)) {
+    $errors[] = 'Please select a valid complaint category.';
+}
+if (empty($description)) {
+    $errors[] = 'Complaint description is required.';
 }
 
-// 1. Verify CSRF Token (support JSON body, POST form-data, and HTTP headers)
-$token = $input['csrf_token'] 
-    ?? $_POST['csrf_token'] 
-    ?? $_SERVER['HTTP_X_CSRF_TOKEN'] 
-    ?? $_SERVER['HTTP_CSRF_TOKEN'] 
-    ?? null;
-
-if (!verifyCsrfToken($token)) {
-    http_response_code(403);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Invalid or expired security token. Please refresh the page.'
-    ]);
-    exit;
-}
-
-// 2. Retrieve inputs and release session lock
-$studentId = (int) $_SESSION['user_id'];
-session_write_close();
-$title = trim($input['title'] ?? '');
-$description = trim($input['description'] ?? '');
-$category = trim($input['category'] ?? '');
-$hostel = trim($input['hostel'] ?? '');
-$roomNumber = trim($input['room_number'] ?? '');
-
-$validCategories = getComplaintCategories();
-$validHostels = getIITHostels();
-
-// 3. Validation checks
-if (empty($title) || empty($description) || empty($category) || empty($hostel) || empty($roomNumber)) {
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'message' => 'All fields (title, description, category, hostel, room number) are required.'
-    ]);
-    exit;
-}
-
-if (strlen($title) < 5 || strlen($title) > 150) {
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Complaint title must be between 5 and 150 characters.'
-    ]);
-    exit;
-}
-
-if (strlen($description) < 10) {
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Please provide a more detailed description (at least 10 characters).'
-    ]);
-    exit;
-}
-
-if (!in_array($category, $validCategories, true)) {
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Please select a valid complaint category.'
-    ]);
-    exit;
-}
-
-if (!in_array($hostel, $validHostels, true)) {
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Please select a valid IIT (ISM) Dhanbad hostel.'
-    ]);
-    exit;
+if (!empty($errors)) {
+    if ($isJsonRequest) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'message' => implode(' ', $errors)
+        ]);
+        exit;
+    } else {
+        $_SESSION['flash_error'] = implode(' ', $errors);
+        header('Location: ../student.php');
+        exit;
+    }
 }
 
 try {
-    $db = getDbConnection();
+    $pdo = getDbConnection();
 
-    // 4. Resolve the relational hostel_id
-    $hStmt = $db->prepare('SELECT id FROM hostels WHERE name = :name LIMIT 1');
-    $hStmt->execute(['name' => $hostel]);
-    $hostelRow = $hStmt->fetch();
-    $hostelId = $hostelRow ? (int) $hostelRow['id'] : null;
+    // Step 1: Look up existing student by Admission Number
+    $stmtStudent = $pdo->prepare('SELECT id, name, email FROM students WHERE admission_no = ?');
+    $stmtStudent->execute([$admission_no]);
+    $student = $stmtStudent->fetch();
 
-    // 5. Insert complaint with guaranteed initial status 'Submitted' and associated hostel_id
-    $stmt = $db->prepare(
-        'INSERT INTO complaints (student_id, title, description, category, hostel_id, hostel, room_number, status)
-         VALUES (:student_id, :title, :description, :category, :hostel_id, :hostel, :room_number, :status)'
+    if ($student) {
+        $studentId = (int)$student['id'];
+        // Keep student record up to date with any newly entered name/email
+        $stmtUpdateStudent = $pdo->prepare('UPDATE students SET name = ?, email = ? WHERE id = ?');
+        $stmtUpdateStudent->execute([$name, $email, $studentId]);
+    } else {
+        // Register new student in minimal students table
+        $stmtInsertStudent = $pdo->prepare('INSERT INTO students (name, admission_no, email) VALUES (?, ?, ?)');
+        $stmtInsertStudent->execute([$name, $admission_no, $email]);
+        $studentId = (int)$pdo->lastInsertId();
+    }
+
+    // Step 2: Insert the complaint with initial status 'Submitted'
+    $stmtComplaint = $pdo->prepare(
+        'INSERT INTO complaints (student_id, title, description, category, status, created_at) 
+         VALUES (?, ?, ?, ?, "Submitted", NOW())'
     );
+    $stmtComplaint->execute([$studentId, $title, $description, $category]);
+    $complaintId = (int)$pdo->lastInsertId();
 
-    $stmt->execute([
-        'student_id'  => $studentId,
-        'title'       => $title,
-        'description' => $description,
-        'category'    => $category,
-        'hostel_id'   => $hostelId,
-        'hostel'      => $hostel,
-        'room_number' => $roomNumber,
-        'status'      => 'Submitted',
-    ]);
+    // Store student identity in session so their dashboard stays in context
+    $_SESSION['student_admission_no'] = $admission_no;
+    $_SESSION['student_name'] = $name;
+    $_SESSION['student_email'] = $email;
+    $_SESSION['student_id'] = $studentId;
 
-    $newId = (int) $db->lastInsertId();
+    if ($isJsonRequest) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success'      => true,
+            'message'      => 'Complaint submitted successfully! Initial status: Submitted.',
+            'complaint_id' => $complaintId,
+            'complaint'    => [
+                'id'           => $complaintId,
+                'title'        => $title,
+                'description'  => $description,
+                'category'     => $category,
+                'status'       => 'Submitted',
+                'student_name' => $name,
+                'admission_no' => $admission_no,
+                'created_at'   => date('Y-m-d H:i:s')
+            ]
+        ]);
+        exit;
+    } else {
+        $_SESSION['flash_success'] = "Complaint #{$complaintId} submitted successfully! Status: Submitted.";
+        header('Location: ../student.php');
+        exit;
+    }
 
-    $fetchStmt = $db->prepare('SELECT * FROM complaints WHERE id = :id');
-    $fetchStmt->execute(['id' => $newId]);
-    $newComplaint = $fetchStmt->fetch();
-
-    http_response_code(201);
-    echo json_encode([
-        'success'      => true,
-        'message'      => 'Complaint #' . $newId . ' submitted successfully to ' . $hostel . ' maintenance!',
-        'complaint_id' => $newId,
-        'complaint'    => $newComplaint
-    ]);
 } catch (PDOException $e) {
-    error_log('API submit_complaint error: ' . $e->getMessage());
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Database error while saving your complaint. Please try again.'
-    ]);
+    if ($isJsonRequest) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Database error: ' . $e->getMessage()
+        ]);
+        exit;
+    } else {
+        $_SESSION['flash_error'] = 'Could not save complaint due to a database error.';
+        header('Location: ../student.php');
+        exit;
+    }
 }
 ?>
