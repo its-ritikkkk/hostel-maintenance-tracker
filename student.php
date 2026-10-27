@@ -1,8 +1,7 @@
 <?php
 // ====================================================================
 // File: student.php
-// Purpose: Student complaint submission and tracking interface
-// Project: College Web Development Lab (P4)
+// Purpose: Student Portal with Signup, Login, and Session management
 // Hostel: Aquamarine Hostel, IIT (ISM) Dhanbad
 // ====================================================================
 
@@ -11,248 +10,332 @@ require_once __DIR__ . '/config/db.php';
 
 $pdo = getDbConnection();
 
-// Check if student wants to switch or logout
+// Action: Student Logout
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
-    unset($_SESSION['student_admission_no']);
-    unset($_SESSION['student_name']);
-    unset($_SESSION['student_email']);
-    unset($_SESSION['student_id']);
+    unset($_SESSION['student_id'], $_SESSION['student_name'], $_SESSION['student_admission_no'], $_SESSION['student_email']);
+    $_SESSION['flash_success'] = 'You have logged out successfully.';
     header('Location: student.php');
     exit;
 }
 
-// Check if student identity was passed in GET (for quick demo selection)
-if (!empty($_GET['admission_no'])) {
-    $admQuery = strtoupper(trim($_GET['admission_no']));
-    $stmtFind = $pdo->prepare('SELECT id, name, admission_no, email FROM students WHERE admission_no = ?');
-    $stmtFind->execute([$admQuery]);
-    $foundStudent = $stmtFind->fetch();
+// Action: Handle Student Login or Signup form submissions
+$authError = '';
 
-    if ($foundStudent) {
-        $_SESSION['student_admission_no'] = $foundStudent['admission_no'];
-        $_SESSION['student_name'] = $foundStudent['name'];
-        $_SESSION['student_email'] = $foundStudent['email'];
-        $_SESSION['student_id'] = $foundStudent['id'];
-    } else {
-        // If it's a new admission number without student record yet, keep in session
-        $_SESSION['student_admission_no'] = $admQuery;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auth_type'])) {
+    $authType = $_POST['auth_type'];
+
+    // 1. STUDENT LOGIN
+    if ($authType === 'login') {
+        $adm = strtoupper(trim($_POST['admission_no'] ?? ''));
+        $pwd = trim($_POST['password'] ?? '');
+
+        if (!empty($adm) && !empty($pwd)) {
+            $stmt = $pdo->prepare('SELECT id, name, admission_no, email, password FROM students WHERE admission_no = ?');
+            $stmt->execute([$adm]);
+            $student = $stmt->fetch();
+
+            // Verify password using password_verify (no default pass)
+            if ($student && !empty($student['password']) && password_verify($pwd, $student['password'])) {
+                // Unset warden session if active
+                unset($_SESSION['warden_logged_in']);
+
+                $_SESSION['student_id']           = (int)$student['id'];
+                $_SESSION['student_name']         = $student['name'];
+                $_SESSION['student_admission_no'] = $student['admission_no'];
+                $_SESSION['student_email']        = $student['email'];
+                $_SESSION['flash_success']        = 'Welcome back, ' . $student['name'] . '!';
+                header('Location: student.php');
+                exit;
+            } else {
+                $authError = 'Invalid Admission Number or Password.';
+            }
+        } else {
+            $authError = 'Please enter both Admission Number and Password.';
+        }
+    }
+
+    // 2. STUDENT SIGNUP
+    if ($authType === 'signup') {
+        $name  = trim($_POST['name'] ?? '');
+        $adm   = strtoupper(trim($_POST['admission_no'] ?? ''));
+        $email = trim($_POST['email'] ?? '');
+        $pwd   = trim($_POST['password'] ?? '');
+
+        if (!empty($name) && !empty($adm) && !empty($email) && !empty($pwd)) {
+            // Check if admission number is already registered
+            $checkStmt = $pdo->prepare('SELECT id FROM students WHERE admission_no = ?');
+            $checkStmt->execute([$adm]);
+
+            if ($checkStmt->fetch()) {
+                $authError = 'This Admission Number is already registered. Please Login.';
+            } else {
+                // Hash password and insert into students table
+                $hashedPw = password_hash($pwd, PASSWORD_DEFAULT);
+                $insertStmt = $pdo->prepare('INSERT INTO students (name, admission_no, email, password) VALUES (?, ?, ?, ?)');
+                $insertStmt->execute([$name, $adm, $email, $hashedPw]);
+                $newStudentId = (int)$pdo->lastInsertId();
+
+                // Unset warden session if active
+                unset($_SESSION['warden_logged_in']);
+
+                // Save in session immediately
+                $_SESSION['student_id']           = $newStudentId;
+                $_SESSION['student_name']         = $name;
+                $_SESSION['student_admission_no'] = $adm;
+                $_SESSION['student_email']        = $email;
+                $_SESSION['flash_success']        = 'Account created successfully! Welcome, ' . $name . '.';
+                header('Location: student.php');
+                exit;
+            }
+        } else {
+            $authError = 'All fields are required to sign up.';
+        }
     }
 }
 
-// Current logged in student information
-$currentAdmissionNo = $_SESSION['student_admission_no'] ?? '';
+// Check logged in status
+$isStudentLoggedIn = !empty($_SESSION['student_id']);
+$currentStudentId  = $_SESSION['student_id'] ?? null;
 $currentStudentName = $_SESSION['student_name'] ?? '';
+$currentAdmissionNo = $_SESSION['student_admission_no'] ?? '';
 $currentStudentEmail = $_SESSION['student_email'] ?? '';
 
-// Flash notifications
+// Flash alerts
 $flashSuccess = $_SESSION['flash_success'] ?? '';
-$flashError = $_SESSION['flash_error'] ?? '';
+$flashError   = $_SESSION['flash_error'] ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-// Retrieve complaints:
-// If student is identified, fetch their complaints; otherwise fetch recent complaints for Aquamarine Hostel
-if (!empty($currentAdmissionNo)) {
-    $stmtComplaints = $pdo->prepare('
+// Retrieve complaints list:
+// If logged in -> show that student's complaints
+// If not logged in -> show all hostel complaints as public tracker
+if ($isStudentLoggedIn) {
+    $stmt = $pdo->prepare('
         SELECT c.id, c.title, c.description, c.category, c.status, c.created_at,
                s.name AS student_name, s.admission_no, s.email AS student_email
         FROM complaints c
         JOIN students s ON c.student_id = s.id
-        WHERE s.admission_no = ?
+        WHERE c.student_id = ?
         ORDER BY c.created_at DESC, c.id DESC
     ');
-    $stmtComplaints->execute([$currentAdmissionNo]);
-    $complaintsList = $stmtComplaints->fetchAll();
-    $pageTitle = "My Complaints (" . htmlspecialchars($currentAdmissionNo) . ")";
+    $stmt->execute([$currentStudentId]);
+    $pageTitle = "My Maintenance Complaints";
 } else {
-    // If not logged in yet, show all Aquamarine hostel complaints so student can see public tracker
-    $stmtComplaints = $pdo->query('
+    $stmt = $pdo->query('
         SELECT c.id, c.title, c.description, c.category, c.status, c.created_at,
                s.name AS student_name, s.admission_no, s.email AS student_email
         FROM complaints c
         JOIN students s ON c.student_id = s.id
         ORDER BY c.created_at DESC, c.id DESC
     ');
-    $complaintsList = $stmtComplaints->fetchAll();
-    $pageTitle = "All Aquamarine Hostel Complaints";
+    $pageTitle = "Public Hostel Complaints Tracker";
 }
-
-// Fetch list of sample students for 1-click lab demonstration
-$sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM students LIMIT 5')->fetchAll();
+$complaintsList = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Portal | Hostel Maintenance Tracker - Aquamarine Hostel, IIT (ISM) Dhanbad</title>
-    <link rel="stylesheet" href="assets/style.css">
+    <title>Student Portal | Aquamarine Hostel</title>
+    <link rel="stylesheet" href="assets/style.css?v=<?php echo time(); ?>">
 </head>
 <body data-student-admission="<?php echo htmlspecialchars($currentAdmissionNo); ?>">
 
-    <!-- Top Header Bar -->
+    <!-- Top Navigation Header -->
     <header class="header-bar">
         <div class="header-container">
             <div class="brand-info">
-                <h1>🎓 Student Complaint Portal</h1>
-                <span class="hostel-badge">📍 Aquamarine Hostel, IIT (ISM) Dhanbad</span>
+                <h1>🎓 Student Portal</h1>
+                <span class="hostel-badge">Aquamarine Hostel, IIT (ISM)</span>
             </div>
             <nav class="nav-links">
                 <a href="index.php" class="nav-link">Home</a>
                 <a href="student.php" class="nav-link active">Student Portal</a>
                 <a href="warden.php" class="nav-link">Warden Dashboard</a>
+                <?php if ($isStudentLoggedIn): ?>
+                    <a href="student.php?action=logout" class="nav-link" style="background-color: #dc2626;">Logout</a>
+                <?php endif; ?>
             </nav>
         </div>
     </header>
 
-    <!-- Main Content -->
+    <!-- Main Content Area -->
     <main class="main-wrapper">
 
         <!-- Flash Notifications -->
-        <?php if (!empty($flashSuccess)): ?>
-            <div class="alert alert-success">
-                <span>✅ <?php echo htmlspecialchars($flashSuccess); ?></span>
-            </div>
+        <?php if ($flashSuccess): ?>
+            <div class="alert alert-success">✅ <?php echo htmlspecialchars($flashSuccess); ?></div>
+        <?php endif; ?>
+        <?php if ($flashError): ?>
+            <div class="alert alert-error">⚠️ <?php echo htmlspecialchars($flashError); ?></div>
+        <?php endif; ?>
+        <?php if ($authError): ?>
+            <div class="alert alert-error">⚠️ <?php echo htmlspecialchars($authError); ?></div>
         <?php endif; ?>
 
-        <?php if (!empty($flashError)): ?>
-            <div class="alert alert-error">
-                <span>⚠️ <?php echo htmlspecialchars($flashError); ?></span>
-            </div>
-        <?php endif; ?>
-
-        <!-- Student Identification / Quick Switch Bar -->
-        <section class="student-bar">
-            <div class="student-bar-info">
-                <?php if (!empty($currentAdmissionNo)): ?>
-                    <span>Identified Student: <strong><?php echo htmlspecialchars($currentStudentName ?: 'Student'); ?></strong> (Adm No: <strong><?php echo htmlspecialchars($currentAdmissionNo); ?></strong>)</span>
-                <?php else: ?>
-                    <span>Viewing public complaints list. Select or enter your Admission Number to filter your complaints.</span>
-                <?php endif; ?>
-            </div>
-
-            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                <?php if (!empty($currentAdmissionNo)): ?>
-                    <a href="student.php?action=logout" class="btn btn-secondary btn-sm">Clear / View All</a>
-                <?php endif; ?>
-                <!-- Quick Demo Switch Dropdown -->
-                <form method="GET" action="student.php" style="display: inline-flex; gap: 0.35rem; align-items: center;">
-                    <label for="switchAdm" style="font-size: 0.85rem; color: #64748b;">Quick Student:</label>
-                    <select id="switchAdm" name="admission_no" class="filter-select" onchange="this.form.submit()">
-                        <option value="">-- Choose Student --</option>
-                        <?php foreach ($sampleStudents as $s): ?>
-                            <option value="<?php echo htmlspecialchars($s['admission_no']); ?>" <?php if ($currentAdmissionNo === $s['admission_no']) echo 'selected'; ?>>
-                                <?php echo htmlspecialchars($s['name']) . ' (' . htmlspecialchars($s['admission_no']) . ')'; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </form>
-            </div>
-        </section>
-
-        <!-- Complaint Submission Form -->
-        <section class="form-card">
-            <div class="form-header">
-                <h3>📝 Submit a New Hostel Maintenance Complaint</h3>
-                <p>All complaints are routed directly to the Aquamarine Hostel Warden. Initial status is set to <strong>Submitted</strong>.</p>
-            </div>
-
-            <form id="complaintForm" method="POST" action="api/submit_complaint.php">
-                <div class="form-grid">
-                    <!-- Student Name -->
-                    <div class="form-group">
-                        <label for="studentName" class="form-label">Full Name *</label>
-                        <input 
-                            type="text" 
-                            id="studentName" 
-                            name="name" 
-                            class="form-control" 
-                            placeholder="e.g. Ritik Kumar" 
-                            value="<?php echo htmlspecialchars($currentStudentName); ?>" 
-                            required
-                        >
-                    </div>
-
-                    <!-- Admission Number -->
-                    <div class="form-group">
-                        <label for="admissionNo" class="form-label">Admission Number *</label>
-                        <input 
-                            type="text" 
-                            id="admissionNo" 
-                            name="admission_no" 
-                            class="form-control" 
-                            placeholder="e.g. 23JE0501" 
-                            value="<?php echo htmlspecialchars($currentAdmissionNo); ?>" 
-                            required
-                        >
-                    </div>
-
-                    <!-- Email Address -->
-                    <div class="form-group">
-                        <label for="studentEmail" class="form-label">Institute Email *</label>
-                        <input 
-                            type="email" 
-                            id="studentEmail" 
-                            name="email" 
-                            class="form-control" 
-                            placeholder="e.g. student@iitism.ac.in" 
-                            value="<?php echo htmlspecialchars($currentStudentEmail); ?>" 
-                            required
-                        >
-                    </div>
-
-                    <!-- Category Selection -->
-                    <div class="form-group">
-                        <label for="complaintCategory" class="form-label">Maintenance Category *</label>
-                        <select id="complaintCategory" name="category" class="form-control" required>
-                            <option value="">-- Select Category --</option>
-                            <option value="Electrical">⚡ Electrical (Fan, Light, Switch, Geyser)</option>
-                            <option value="Plumbing">🚰 Plumbing (Tap, Pipe, Drainage, Washroom)</option>
-                            <option value="Network">🌐 Network (LAN port, Wi-Fi connectivity)</option>
-                            <option value="Housekeeping">🧹 Housekeeping (Cleaning, Waste, Dustbin)</option>
-                        </select>
-                    </div>
-
-                    <!-- Complaint Title -->
-                    <div class="form-group full-width">
-                        <label for="complaintTitle" class="form-label">Complaint Title *</label>
-                        <input 
-                            type="text" 
-                            id="complaintTitle" 
-                            name="title" 
-                            class="form-control" 
-                            placeholder="e.g. Room B-204 Ceiling Fan Regulator Broken" 
-                            required
-                        >
-                    </div>
-
-                    <!-- Detailed Description -->
-                    <div class="form-group full-width">
-                        <label for="complaintDescription" class="form-label">Detailed Description *</label>
-                        <textarea 
-                            id="complaintDescription" 
-                            name="description" 
-                            class="form-control" 
-                            rows="3" 
-                            placeholder="Please describe the maintenance issue with room/location details..." 
-                            required
-                        ></textarea>
-                    </div>
-                </div>
-
-                <div style="display: flex; justify-content: flex-end;">
-                    <button type="submit" class="btn btn-primary">
-                        🚀 Submit Maintenance Request
+        <?php if (!$isStudentLoggedIn): ?>
+            <!-- ========================================== -->
+            <!-- STUDENT AUTH CARD (Login / Sign Up)        -->
+            <!-- ========================================== -->
+            <div class="auth-card">
+                <div class="auth-tabs">
+                    <button type="button" class="auth-tab-btn active" id="tabBtnLogin" onclick="switchAuthTab('login')">
+                        Student Login
+                    </button>
+                    <button type="button" class="auth-tab-btn" id="tabBtnSignup" onclick="switchAuthTab('signup')">
+                        New Student Sign Up
                     </button>
                 </div>
-            </form>
-        </section>
 
-        <!-- Complaints List & Filter Section -->
+                <!-- 1. Login Form -->
+                <form id="studentLoginForm" method="POST" action="student.php">
+                    <input type="hidden" name="auth_type" value="login">
+
+                    <div class="form-group" style="margin-bottom: 14px;">
+                        <label for="loginAdm" class="form-label">Admission Number *</label>
+                        <input type="text" id="loginAdm" name="admission_no" class="form-control" placeholder="e.g. 23JE0501" required>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 18px;">
+                        <label for="loginPw" class="form-label">Password *</label>
+                        <input type="password" id="loginPw" name="password" class="form-control" placeholder="••••••••" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width: 100vw; max-width: 430px;">
+                        Login to Student Portal &rarr;
+                    </button>
+
+                    <div class="auth-hint">
+                        New student? Click <strong>"New Student Sign Up"</strong> above to register your account.
+                    </div>
+                </form>
+
+                <!-- 2. Signup Form -->
+                <form id="studentSignupForm" method="POST" action="student.php" style="display: none;">
+                    <input type="hidden" name="auth_type" value="signup">
+
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="signupName" class="form-label">Full Name *</label>
+                        <input type="text" id="signupName" name="name" class="form-control" placeholder="e.g. Ritik Kumar" required>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="signupAdm" class="form-label">Admission Number *</label>
+                        <input type="text" id="signupAdm" name="admission_no" class="form-control" placeholder="e.g. 23JE0501" required>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="signupEmail" class="form-label">Institute Email *</label>
+                        <input type="email" id="signupEmail" name="email" class="form-control" placeholder="e.g. student@iitism.ac.in" required>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 18px;">
+                        <label for="signupPw" class="form-label">Create Password *</label>
+                        <input type="password" id="signupPw" name="password" class="form-control" placeholder="Choose a password" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width: 100vw; max-width: 430px;">
+                        Create Account & Login &rarr;
+                    </button>
+                </form>
+            </div>
+
+            <script>
+                function switchAuthTab(tab) {
+                    const loginForm = document.getElementById('studentLoginForm');
+                    const signupForm = document.getElementById('studentSignupForm');
+                    const btnLogin = document.getElementById('tabBtnLogin');
+                    const btnSignup = document.getElementById('tabBtnSignup');
+
+                    if (tab === 'login') {
+                        loginForm.style.display = 'block';
+                        signupForm.style.display = 'none';
+                        btnLogin.classList.add('active');
+                        btnSignup.classList.remove('active');
+                    } else {
+                        loginForm.style.display = 'none';
+                        signupForm.style.display = 'block';
+                        btnSignup.classList.add('active');
+                        btnLogin.classList.remove('active');
+                    }
+                }
+            </script>
+
+        <?php else: ?>
+            <!-- ========================================== -->
+            <!-- LOGGED-IN STUDENT DASHBOARD               -->
+            <!-- ========================================== -->
+
+            <!-- Session Bar -->
+            <div class="student-bar">
+                <div>
+                    Logged in as: <strong><?php echo htmlspecialchars($currentStudentName); ?></strong> 
+                    (Admission No: <strong><?php echo htmlspecialchars($currentAdmissionNo); ?></strong> &bull; <?php echo htmlspecialchars($currentStudentEmail); ?>)
+                </div>
+                <div>
+                    <a href="student.php?action=logout" class="btn btn-secondary btn-sm" style="color: #dc2626;">Logout</a>
+                </div>
+            </div>
+
+            <!-- Lodge Complaint Form -->
+            <section class="form-card">
+                <div class="form-header">
+                    <h3>📝 Lodge a Maintenance Complaint</h3>
+                    <p>Your student details are automatically linked from your session.</p>
+                </div>
+
+                <form id="complaintForm" method="POST" action="api/submit_complaint.php">
+                    <!-- Pre-filled student fields from session -->
+                    <input type="hidden" id="studentName" name="name" value="<?php echo htmlspecialchars($currentStudentName); ?>">
+                    <input type="hidden" id="admissionNo" name="admission_no" value="<?php echo htmlspecialchars($currentAdmissionNo); ?>">
+                    <input type="hidden" id="studentEmail" name="email" value="<?php echo htmlspecialchars($currentStudentEmail); ?>">
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Student Name</label>
+                            <input type="text" class="form-control" value="<?php echo htmlspecialchars($currentStudentName); ?>" readonly style="background-color: #f8fafc;">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Admission Number</label>
+                            <input type="text" class="form-control" value="<?php echo htmlspecialchars($currentAdmissionNo); ?>" readonly style="background-color: #f8fafc;">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="complaintCategory" class="form-label">Maintenance Category *</label>
+                            <select id="complaintCategory" name="category" class="form-control" required>
+                                <option value="">-- Select Category --</option>
+                                <option value="Electrical">⚡ Electrical (Fan, Light, Switch)</option>
+                                <option value="Plumbing">🚰 Plumbing (Tap, Pipe, Washroom)</option>
+                                <option value="Network">🌐 Network (Wi-Fi, LAN)</option>
+                                <option value="Housekeeping">🧹 Housekeeping (Cleaning, Waste)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="complaintTitle" class="form-label">Room / Location & Issue *</label>
+                            <input type="text" id="complaintTitle" name="title" class="form-control" placeholder="e.g. Room B-204 Ceiling Fan Regulator" required>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="complaintDescription" class="form-label">Detailed Description *</label>
+                            <textarea id="complaintDescription" name="description" class="form-control" rows="3" placeholder="Describe the maintenance issue clearly..." required></textarea>
+                        </div>
+                    </div>
+
+                    <div style="text-align: right;">
+                        <button type="submit" class="btn btn-primary">Submit Complaint &rarr;</button>
+                    </div>
+                </form>
+            </section>
+
+        <?php endif; ?>
+
+        <!-- Complaints List Section (Always Visible) -->
         <section>
             <!-- Filter Bar -->
             <div class="filter-bar">
                 <div class="filter-controls">
-                    <!-- Category Filter -->
                     <div class="filter-group">
                         <label for="categoryFilter">Category:</label>
                         <select id="categoryFilter" class="filter-select">
@@ -264,7 +347,6 @@ $sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM student
                         </select>
                     </div>
 
-                    <!-- Status Filter -->
                     <div class="filter-group">
                         <label for="statusFilter">Status:</label>
                         <select id="statusFilter" class="filter-select">
@@ -275,44 +357,36 @@ $sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM student
                         </select>
                     </div>
 
-                    <!-- Search Filter -->
                     <div class="filter-group">
-                        <input 
-                            type="text" 
-                            id="searchFilter" 
-                            class="filter-select" 
-                            placeholder="🔍 Filter by title or text..." 
-                            style="min-width: 180px;"
-                        >
+                        <input type="text" id="searchFilter" class="filter-select" placeholder="🔍 Search title or text...">
                     </div>
                 </div>
 
-                <!-- Live Auto-Refresh Status Pill -->
                 <div class="refresh-status-box">
                     <span class="pulse-dot"></span>
                     <span>Live Auto-Refresh (5s)</span>
-                    <span style="color: #94a3b8;">|</span>
+                    <span style="color: #cbd5e1;">|</span>
                     <span>Synced: <span id="lastSyncTime"><?php echo date('H:i:s'); ?></span></span>
                 </div>
             </div>
 
-            <!-- Complaints Table Header with Count -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                <h3 style="font-size: 1.2rem; color: #0f172a;">
+            <!-- Table Header -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="font-size: 18px; color: #0f172a;">
                     📋 <?php echo $pageTitle; ?> (<span id="visibleComplaintsCount"><?php echo count($complaintsList); ?></span>)
                 </h3>
             </div>
 
-            <!-- Complaints Table -->
+            <!-- Table -->
             <div class="table-responsive">
                 <table class="complaint-table" id="complaintsTable">
                     <thead>
                         <tr>
-                            <th>Complaint ID</th>
+                            <th>ID</th>
                             <th>Title & Description</th>
                             <th>Category</th>
                             <th>Student</th>
-                            <th>Date & Time</th>
+                            <th>Date</th>
                             <th>Status</th>
                             <th>Action</th>
                         </tr>
@@ -321,7 +395,7 @@ $sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM student
                         <?php if (empty($complaintsList)): ?>
                             <tr>
                                 <td colspan="7" class="empty-state">
-                                    <p>No complaints found matching your criteria.</p>
+                                    <?php echo $isStudentLoggedIn ? "You haven't submitted any complaints yet." : "No complaints found."; ?>
                                 </td>
                             </tr>
                         <?php else: ?>
@@ -349,23 +423,22 @@ $sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM student
                                     </td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($row['student_name']); ?></strong>
-                                        <div style="font-size: 0.8rem; color: #64748b;"><?php echo htmlspecialchars($row['admission_no']); ?></div>
+                                        <div style="font-size: 12px; color: #64748b;"><?php echo htmlspecialchars($row['admission_no']); ?></div>
                                     </td>
-                                    <td style="color: #64748b; font-size: 0.85rem; white-space: nowrap;">
+                                    <td style="color: #64748b; font-size: 13px; white-space: nowrap;">
                                         <?php echo date('d M Y, h:i A', strtotime($row['created_at'])); ?>
                                     </td>
                                     <td>
                                         <span 
                                             class="badge status-badge <?php echo $statusClass; ?>" 
                                             data-complaint-id="<?php echo (int)$row['id']; ?>"
-                                            data-current-status="<?php echo htmlspecialchars($row['status']); ?>"
                                         >
                                             <?php echo htmlspecialchars($row['status']); ?>
                                         </span>
                                     </td>
                                     <td>
                                         <button 
-                                            type="button"
+                                            type="button" 
                                             class="btn btn-secondary btn-sm btn-view-complaint"
                                             data-id="<?php echo (int)$row['id']; ?>"
                                             data-title="<?php echo htmlspecialchars($row['title']); ?>"
@@ -376,15 +449,13 @@ $sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM student
                                             data-admission-no="<?php echo htmlspecialchars($row['admission_no']); ?>"
                                             data-description="<?php echo htmlspecialchars($row['description']); ?>"
                                         >
-                                            🔍 View
+                                            View
                                         </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                             <tr id="noFilterResultsRow" style="display: none;">
-                                <td colspan="7" class="empty-state">
-                                    <p>No complaints match the selected filter criteria.</p>
-                                </td>
+                                <td colspan="7" class="empty-state">No complaints match your filter criteria.</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
@@ -400,7 +471,7 @@ $sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM student
             <div class="modal-header">
                 <div>
                     <h3 id="modalTitle">Complaint Details</h3>
-                    <span style="font-size: 0.85rem; color: #64748b;" id="modalComplaintId">#CMP-000</span>
+                    <span style="font-size: 13px; color: #64748b;" id="modalComplaintId">#CMP-000</span>
                 </div>
                 <button type="button" class="modal-close-btn" id="closeModalBtn">&times;</button>
             </div>
@@ -410,7 +481,7 @@ $sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM student
                     <span>Aquamarine Hostel, IIT (ISM) Dhanbad</span>
                 </div>
                 <div class="detail-row">
-                    <span class="label">Submitted By:</span>
+                    <span class="label">Student:</span>
                     <span id="modalStudent"></span>
                 </div>
                 <div class="detail-row">
@@ -426,7 +497,7 @@ $sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM student
                     <span id="modalDate"></span>
                 </div>
                 <div>
-                    <span class="label">Full Description:</span>
+                    <span class="label">Description:</span>
                     <div class="detail-desc-box" id="modalDescription"></div>
                 </div>
             </div>
@@ -435,12 +506,9 @@ $sampleStudents = $pdo->query('SELECT id, name, admission_no, email FROM student
 
     <!-- Footer -->
     <footer class="footer-bar">
-        <p>
-            <strong>Hostel Maintenance and Complaint Tracker</strong> &bull; Aquamarine Hostel, IIT (ISM) Dhanbad<br>
-            Real-time status updates via JavaScript <code>fetch()</code> and MariaDB.
-        </p>
+        <p>Hostel Maintenance and Complaint Tracker &bull; Aquamarine Hostel, IIT (ISM) Dhanbad</p>
     </footer>
 
-    <script src="assets/script.js"></script>
+    <script src="assets/script.js?v=<?php echo time(); ?>"></script>
 </body>
 </html>

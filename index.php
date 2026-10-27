@@ -1,8 +1,7 @@
 <?php
 // ====================================================================
 // File: index.php
-// Purpose: Main landing page for Hostel Maintenance and Complaint Tracker
-// Project: College Web Development Lab (P4)
+// Purpose: Home landing page for Hostel Maintenance Tracker
 // Hostel: Aquamarine Hostel, IIT (ISM) Dhanbad
 // ====================================================================
 
@@ -11,14 +10,14 @@ require_once __DIR__ . '/config/db.php';
 
 $pdo = getDbConnection();
 
-// Fetch summary metrics for Aquamarine Hostel
-$totalCount = $pdo->query('SELECT COUNT(*) FROM complaints')->fetchColumn();
-$submittedCount = $pdo->query("SELECT COUNT(*) FROM complaints WHERE status = 'Submitted'")->fetchColumn();
+// Fetch summary metrics
+$totalCount      = $pdo->query('SELECT COUNT(*) FROM complaints')->fetchColumn();
+$submittedCount  = $pdo->query("SELECT COUNT(*) FROM complaints WHERE status = 'Submitted'")->fetchColumn();
 $inProgressCount = $pdo->query("SELECT COUNT(*) FROM complaints WHERE status = 'In Progress'")->fetchColumn();
-$resolvedCount = $pdo->query("SELECT COUNT(*) FROM complaints WHERE status = 'Resolved'")->fetchColumn();
+$resolvedCount   = $pdo->query("SELECT COUNT(*) FROM complaints WHERE status = 'Resolved'")->fetchColumn();
 
-// Fetch recent 6 complaints with student info
-$stmtRecent = $pdo->query('
+// Fetch recent 6 complaints
+$stmt = $pdo->query('
     SELECT c.id, c.title, c.description, c.category, c.status, c.created_at,
            s.name AS student_name, s.admission_no
     FROM complaints c
@@ -26,46 +25,51 @@ $stmtRecent = $pdo->query('
     ORDER BY c.created_at DESC, c.id DESC
     LIMIT 6
 ');
-$recentComplaints = $stmtRecent->fetchAll();
+$recentComplaints = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hostel Maintenance and Complaint Tracker | Aquamarine Hostel, IIT (ISM) Dhanbad</title>
-    <link rel="stylesheet" href="assets/style.css">
+    <title>Hostel Maintenance Tracker | Aquamarine Hostel</title>
+    <link rel="stylesheet" href="assets/style.css?v=<?php echo time(); ?>">
 </head>
 <body>
 
-    <!-- Header Bar with Fixed Hostel Name -->
+    <!-- Header Navigation -->
     <header class="header-bar">
         <div class="header-container">
             <div class="brand-info">
-                <h1>🔧 Hostel Maintenance and Complaint Tracker</h1>
-                <span class="hostel-badge">📍 Aquamarine Hostel, IIT (ISM) Dhanbad</span>
+                <h1>🔧 Hostel Maintenance Tracker</h1>
+                <span class="hostel-badge">Aquamarine Hostel, IIT (ISM)</span>
             </div>
             <nav class="nav-links">
                 <a href="index.php" class="nav-link active">Home</a>
                 <a href="student.php" class="nav-link">Student Portal</a>
                 <a href="warden.php" class="nav-link">Warden Dashboard</a>
+                <?php if (!empty($_SESSION['student_id'])): ?>
+                    <a href="student.php?action=logout" class="nav-link" style="background-color: #dc2626;">Logout (Student)</a>
+                <?php elseif (!empty($_SESSION['warden_logged_in'])): ?>
+                    <a href="warden.php?action=logout" class="nav-link" style="background-color: #dc2626;">Logout (Warden)</a>
+                <?php endif; ?>
             </nav>
         </div>
     </header>
 
-    <!-- Main Content Area -->
+    <!-- Main Content -->
     <main class="main-wrapper">
 
         <!-- Hero Section -->
         <section class="hero-banner">
-            <h2>Welcome to Aquamarine Hostel Helpdesk</h2>
+            <h2>Aquamarine Hostel Maintenance Helpdesk</h2>
             <p>
-                A centralized maintenance tracking system for students and administration of Aquamarine Hostel, 
-                IIT (ISM) Dhanbad. Submit issues, track resolutions, and monitor live status updates asynchronously.
+                A simple, direct complaint tracking system for Aquamarine Hostel residents and wardens. 
+                Lodge issues, view ongoing maintenance, and track live status updates.
             </p>
-            <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
-                <a href="student.php" class="btn btn-primary">📝 Submit or View Complaint</a>
-                <a href="warden.php" class="btn btn-secondary">🛡️ Warden Login / Dashboard</a>
+            <div style="display: flex; justify-content: center; gap: 0.75rem; flex-wrap: wrap;">
+                <a href="student.php" class="btn btn-primary">📝 Submit Complaint</a>
+                <a href="warden.php" class="btn btn-secondary">🛡️ Warden Dashboard</a>
             </div>
         </section>
 
@@ -95,33 +99,31 @@ $recentComplaints = $stmtRecent->fetchAll();
                 <div>
                     <h3>🎓 Student Portal</h3>
                     <p>
-                        Are you an Aquamarine Hostel resident facing electrical, plumbing, network, or housekeeping issues? 
-                        Lodge a complaint in seconds and watch your resolution progress live without manual page reloads.
+                        Facing electrical, plumbing, network, or housekeeping issues? Submit a ticket and track resolution status in real time.
                     </p>
                 </div>
-                <a href="student.php" class="btn btn-primary">Enter Student Portal &rarr;</a>
+                <a href="student.php" class="btn btn-primary">Go to Student Portal &rarr;</a>
             </div>
 
             <div class="portal-card">
                 <div>
-                    <h3>👔 Warden (Admin) Portal</h3>
+                    <h3>🛡️ Warden Dashboard</h3>
                     <p>
-                        Administer all complaints logged for Aquamarine Hostel. Filter by category, review resident issue descriptions, 
-                        and update work statuses from <em>Submitted</em> to <em>In Progress</em> or <em>Resolved</em>.
+                        Review all submitted student complaints, filter by category or status, and update progress to Resolved.
                     </p>
                 </div>
-                <a href="warden.php" class="btn btn-secondary">Enter Warden Dashboard &rarr;</a>
+                <a href="warden.php" class="btn btn-secondary">Go to Warden Dashboard &rarr;</a>
             </div>
         </section>
 
-        <!-- Recent Complaints Section with Live Auto-Refresh -->
-        <section style="margin-top: 2.5rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-                <h3 style="color: #0f172a; font-size: 1.25rem;">📋 Recent Hostel Complaints</h3>
+        <!-- Recent Complaints Table -->
+        <section style="margin-top: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 style="color: #0f172a; font-size: 1.15rem;">📋 Recent Hostel Complaints</h3>
                 <div class="refresh-status-box">
                     <span class="pulse-dot"></span>
                     <span>Live Auto-Refresh (5s)</span>
-                    <span style="color: #94a3b8;">|</span>
+                    <span style="color: #cbd5e1;">|</span>
                     <span>Synced: <span id="lastSyncTime"><?php echo date('H:i:s'); ?></span></span>
                 </div>
             </div>
@@ -134,16 +136,14 @@ $recentComplaints = $stmtRecent->fetchAll();
                             <th>Complaint Details</th>
                             <th>Category</th>
                             <th>Student</th>
-                            <th>Date Logged</th>
+                            <th>Date</th>
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($recentComplaints)): ?>
                             <tr>
-                                <td colspan="6" class="empty-state">
-                                    <p>No complaints submitted yet for Aquamarine Hostel.</p>
-                                </td>
+                                <td colspan="6" class="empty-state">No complaints submitted yet for Aquamarine Hostel.</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($recentComplaints as $row): 
@@ -167,14 +167,13 @@ $recentComplaints = $stmtRecent->fetchAll();
                                         <strong><?php echo htmlspecialchars($row['student_name']); ?></strong>
                                         <div style="font-size: 0.8rem; color: #64748b;"><?php echo htmlspecialchars($row['admission_no']); ?></div>
                                     </td>
-                                    <td style="color: #64748b; font-size: 0.85rem;">
+                                    <td style="color: #64748b; font-size: 0.85rem; white-space: nowrap;">
                                         <?php echo date('d M Y, h:i A', strtotime($row['created_at'])); ?>
                                     </td>
                                     <td>
                                         <span 
                                             class="badge status-badge <?php echo $statusClass; ?>" 
                                             data-complaint-id="<?php echo (int)$row['id']; ?>"
-                                            data-current-status="<?php echo htmlspecialchars($row['status']); ?>"
                                         >
                                             <?php echo htmlspecialchars($row['status']); ?>
                                         </span>
@@ -191,12 +190,9 @@ $recentComplaints = $stmtRecent->fetchAll();
 
     <!-- Footer -->
     <footer class="footer-bar">
-        <p>
-            <strong>Hostel Maintenance and Complaint Tracker</strong> &bull; Aquamarine Hostel, IIT (ISM) Dhanbad<br>
-            Developed with plain HTML, CSS, JavaScript, PHP, and MariaDB.
-        </p>
+        <p>Hostel Maintenance and Complaint Tracker &bull; Aquamarine Hostel, IIT (ISM) Dhanbad</p>
     </footer>
 
-    <script src="assets/script.js"></script>
+    <script src="assets/script.js?v=<?php echo time(); ?>"></script>
 </body>
 </html>

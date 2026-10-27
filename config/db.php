@@ -35,7 +35,14 @@ function getDbConnection() {
     ];
 
     try {
-        return new PDO($dsn, $db_user, $db_pass, $options);
+        $pdo = new PDO($dsn, $db_user, $db_pass, $options);
+        // Ensure students table has password column
+        try {
+            $pdo->exec("ALTER TABLE `students` ADD COLUMN `password` VARCHAR(255) NULL");
+        } catch (Exception $e) {
+            // Column already exists or table not yet created
+        }
+        return $pdo;
     } catch (PDOException $e) {
         // Output a friendly error message suitable for lab evaluation
         http_response_code(500);

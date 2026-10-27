@@ -32,6 +32,17 @@ $title        = trim($data['title'] ?? '');
 $category     = trim($data['category'] ?? '');
 $description  = trim($data['description'] ?? '');
 
+// Fallback to active student session if fields were omitted by client
+if (empty($name) && !empty($_SESSION['student_name'])) {
+    $name = $_SESSION['student_name'];
+}
+if (empty($admission_no) && !empty($_SESSION['student_admission_no'])) {
+    $admission_no = $_SESSION['student_admission_no'];
+}
+if (empty($email) && !empty($_SESSION['student_email'])) {
+    $email = $_SESSION['student_email'];
+}
+
 $allowedCategories = ['Electrical', 'Plumbing', 'Network', 'Housekeeping'];
 
 // Server-side validation

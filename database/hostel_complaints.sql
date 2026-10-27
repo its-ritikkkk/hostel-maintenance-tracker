@@ -22,7 +22,8 @@ CREATE TABLE `students` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL,
   `admission_no` VARCHAR(50) NOT NULL UNIQUE,
-  `email` VARCHAR(100) NOT NULL
+  `email` VARCHAR(100) NOT NULL,
+  `password` VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 4. Create the `complaints` table
@@ -42,22 +43,4 @@ CREATE TABLE `complaints` (
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ====================================================================
--- Sample Data for Testing and Lab Evaluation
--- ====================================================================
 
--- Sample Students
-INSERT INTO `students` (`id`, `name`, `admission_no`, `email`) VALUES
-(1, 'Ritik Kumar', '23JE0501', 'ritik.23je0501@iitism.ac.in'),
-(2, 'Aarav Sharma', '23JE0112', 'aarav.23je0112@iitism.ac.in'),
-(3, 'Priya Singh', '22JE0840', 'priya.22je0840@iitism.ac.in'),
-(4, 'Rohan Verma', '23JE0987', 'rohan.23je0987@iitism.ac.in');
-
--- Sample Complaints
-INSERT INTO `complaints` (`id`, `student_id`, `title`, `description`, `category`, `status`, `created_at`) VALUES
-(1, 1, 'Ceiling Fan Not Working', 'The ceiling fan in Room B-204 is making a loud rattling sound and regulator knob is stuck.', 'Electrical', 'In Progress', '2026-10-21 10:15:00'),
-(2, 2, 'Bathroom Tap Leaking', 'Tap in the 2nd floor common washroom is dripping continuously and wasting water.', 'Plumbing', 'Submitted', '2026-10-22 09:30:00'),
-(3, 1, 'LAN Port Defective', 'The internet ethernet port in Room B-204 has no connectivity / link light is off.', 'Network', 'Submitted', '2026-10-22 14:45:00'),
-(4, 3, 'Dustbin Overflow in Corridor', 'Corridor dustbin near Block A staircase is full and needs daily waste collection.', 'Housekeeping', 'Resolved', '2026-10-20 08:20:00'),
-(5, 4, 'Tube Light Flickering', 'Tube light in Room C-105 flickers constantly causing headache while studying.', 'Electrical', 'In Progress', '2026-10-23 11:00:00'),
-(6, 2, 'Shower Head Clogged', 'Shower head in 2nd floor bathroom has very low water pressure due to calcium scaling.', 'Plumbing', 'Resolved', '2026-10-19 16:10:00');

@@ -16,6 +16,20 @@ $isJsonRequest = (
     isset($_POST['is_ajax'])
 );
 
+// Ensure only logged-in warden can update statuses
+if (empty($_SESSION['warden_logged_in'])) {
+    if ($isJsonRequest) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized: Warden login required.']);
+        exit;
+    } else {
+        $_SESSION['flash_error'] = 'Warden login required to update status.';
+        header('Location: ../warden.php');
+        exit;
+    }
+}
+
 // Read JSON input if sent via fetch(..., { headers: {'Content-Type': 'application/json'} })
 if (!empty($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) {
     $rawInput = file_get_contents('php://input');
