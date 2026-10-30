@@ -15,7 +15,6 @@ $FIXED_WARDEN_PW = 'warden123';
 // Action: Warden Logout
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     unset($_SESSION['warden_logged_in']);
-    $_SESSION['flash_success'] = 'Warden logged out successfully.';
     header('Location: warden.php');
     exit;
 }
@@ -31,7 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['warden_login'])) {
         unset($_SESSION['student_id'], $_SESSION['student_name'], $_SESSION['student_admission_no'], $_SESSION['student_email']);
 
         $_SESSION['warden_logged_in'] = true;
-        $_SESSION['flash_success'] = 'Welcome, Warden!';
         header('Location: warden.php');
         exit;
     } else {
@@ -72,7 +70,7 @@ if ($isWardenLoggedIn) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warden Dashboard | Aquamarine Hostel</title>
+    <title>Warden Portal | Aquamarine Hostel</title>
     <link rel="stylesheet" href="assets/style.css?v=<?php echo time(); ?>">
 </head>
 <body>
@@ -85,9 +83,8 @@ if ($isWardenLoggedIn) {
                 <span class="hostel-badge">Aquamarine Hostel, IIT (ISM)</span>
             </div>
             <nav class="nav-links">
-                <a href="index.php" class="nav-link">Home</a>
                 <a href="student.php" class="nav-link">Student Portal</a>
-                <a href="warden.php" class="nav-link active">Warden Dashboard</a>
+                <a href="warden.php" class="nav-link active">Warden Portal</a>
                 <?php if ($isWardenLoggedIn): ?>
                     <a href="warden.php?action=logout" class="nav-link" style="background-color: #dc2626;">Logout</a>
                 <?php endif; ?>
@@ -96,23 +93,19 @@ if ($isWardenLoggedIn) {
     </header>
 
     <!-- Main Content Area -->
-    <main class="main-wrapper">
-
-        <!-- Flash Notifications -->
-        <?php if ($flashSuccess): ?>
-            <div class="alert alert-success">✅ <?php echo htmlspecialchars($flashSuccess); ?></div>
-        <?php endif; ?>
-        <?php if ($flashError): ?>
-            <div class="alert alert-error">⚠️ <?php echo htmlspecialchars($flashError); ?></div>
-        <?php endif; ?>
-        <?php if ($loginError): ?>
-            <div class="alert alert-error">⚠️ <?php echo htmlspecialchars($loginError); ?></div>
-        <?php endif; ?>
+    <main class="main-wrapper <?php echo (!$isWardenLoggedIn) ? 'auth-main' : ''; ?>">
 
         <?php if (!$isWardenLoggedIn): ?>
             <!-- ========================================== -->
             <!-- WARDEN LOGIN FORM (Fixed Credentials)     -->
             <!-- ========================================== -->
+            <?php if ($loginError): ?>
+                <div class="alert alert-error" style="width: 480px; margin-bottom: 16px;">⚠️ <?php echo htmlspecialchars($loginError); ?></div>
+            <?php endif; ?>
+            <?php if ($flashError): ?>
+                <div class="alert alert-error" style="width: 480px; margin-bottom: 16px;">⚠️ <?php echo htmlspecialchars($flashError); ?></div>
+            <?php endif; ?>
+
             <div class="auth-card">
                 <div class="form-header" style="text-align: center;">
                     <h3>🛡️ Warden Login</h3>
@@ -148,22 +141,20 @@ if ($isWardenLoggedIn) {
             <!-- WARDEN DASHBOARD (When Authenticated)      -->
             <!-- ========================================== -->
 
+            <!-- Flash Notifications -->
+            <?php if ($flashSuccess): ?>
+                <div class="alert alert-success">✅ <?php echo htmlspecialchars($flashSuccess); ?></div>
+            <?php endif; ?>
+            <?php if ($flashError): ?>
+                <div class="alert alert-error">⚠️ <?php echo htmlspecialchars($flashError); ?></div>
+            <?php endif; ?>
+
             <!-- Welcome / Session Banner -->
-            <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h2 style="font-size: 22px; color: #0f172a;">Aquamarine Hostel Helpdesk Management</h2>
-                    <p style="color: #64748b; font-size: 14px;">
-                        Logged in as: <strong>Hostel Warden</strong> &bull; 
-                        <a href="warden.php?action=logout" style="color: #dc2626; text-decoration: none; font-weight: bold;">Logout</a>
-                    </p>
-                </div>
-                <div class="refresh-status-box">
-                    <span class="pulse-dot"></span>
-                    <span>Live Auto-Refresh (5s)</span>
-                    <span style="color: #cbd5e1;">|</span>
-                    <span>Synced: <span id="lastSyncTime"><?php echo date('H:i:s'); ?></span></span>
-                </div>
-            </div>
+            <div style="margin-bottom: 20px; margin-top: 20px; ">
+            
+                    <h1>Hostel Warden</h1>
+         
+            </div> 
 
             <!-- Metrics Cards -->
             <section class="stats-grid">
@@ -185,40 +176,12 @@ if ($isWardenLoggedIn) {
                 </div>
             </section>
 
-            <!-- Complaints List & Filter Section -->
+            <!-- Complaints List Section -->
             <section>
-                <!-- Filter Bar -->
-                <div class="filter-bar">
-                    <div class="filter-controls">
-                        <div class="filter-group">
-                            <label for="categoryFilter">Category:</label>
-                            <select id="categoryFilter" class="filter-select">
-                                <option value="All">All Categories</option>
-                                <option value="Electrical">Electrical</option>
-                                <option value="Plumbing">Plumbing</option>
-                                <option value="Network">Network</option>
-                                <option value="Housekeeping">Housekeeping</option>
-                            </select>
-                        </div>
-
-                        <div class="filter-group">
-                            <label for="statusFilter">Status:</label>
-                            <select id="statusFilter" class="filter-select">
-                                <option value="All">All Statuses</option>
-                                <option value="Submitted">Submitted</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Resolved">Resolved</option>
-                            </select>
-                        </div>
-
-                        <div class="filter-group">
-                            <input type="text" id="searchFilter" class="filter-select" placeholder="🔍 Search student, title, id...">
-                        </div>
-                    </div>
-
-                    <div style="font-size: 13px; color: #64748b;">
-                        Showing <strong id="visibleComplaintsCount" style="color: #0f172a;"><?php echo count($allComplaints); ?></strong> of <?php echo count($allComplaints); ?> complaints
-                    </div>
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.15rem; color: #0f172a; margin: 0;">
+                        📋 All Hostel Complaints (<strong><?php echo count($allComplaints); ?></strong>)
+                    </h3>
                 </div>
 
                 <!-- Complaints Table -->
@@ -309,9 +272,6 @@ if ($isWardenLoggedIn) {
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                                <tr id="noFilterResultsRow" style="display: none;">
-                                    <td colspan="8" class="empty-state">No complaints match your filter criteria.</td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>

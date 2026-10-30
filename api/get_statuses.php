@@ -15,9 +15,17 @@ header('Content-Type: application/json; charset=utf-8');
 try {
     $pdo = getDbConnection();
 
-    $admission_no = isset($_GET['admission_no']) ? strtoupper(trim($_GET['admission_no'])) : '';
+    // Check session permissions:
+    // If student is logged in, restrict to their own admission number
+    if (!empty($_SESSION['student_admission_no'])) {
+        $admission_no = $_SESSION['student_admission_no'];
+    } elseif (!empty($_SESSION['warden_logged_in'])) {
+        $admission_no = isset($_GET['admission_no']) ? strtoupper(trim($_GET['admission_no'])) : '';
+    } else {
+        $admission_no = isset($_GET['admission_no']) ? strtoupper(trim($_GET['admission_no'])) : '';
+    }
 
-    // If an admission number is supplied, return statuses for that student
+    // If an admission number is supplied or from student session, return statuses for that student
     // Otherwise return statuses for all complaints (used by Warden dashboard)
     if (!empty($admission_no)) {
         $stmt = $pdo->prepare(

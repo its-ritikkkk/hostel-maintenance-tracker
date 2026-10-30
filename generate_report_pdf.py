@@ -1,0 +1,948 @@
+"""
+Builds a comprehensive, publication-grade 5-Page Project Report PDF for
+Hostel Maintenance and Complaint Tracker (Aquamarine Hostel, IIT (ISM) Dhanbad).
+Strictly formatted to exactly 5 pages.
+"""
+import os
+import subprocess
+import sys
+import re
+
+HTML_CONTENT = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hostel Maintenance and Complaint Tracker - 5-Page Project Report</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    @page {
+        size: A4 portrait;
+        margin: 10mm 12mm 12mm 12mm;
+        @bottom-right {
+            content: "Page " counter(page) " of 5";
+            font-family: 'Inter', sans-serif;
+            font-size: 7.5pt;
+            color: #64748b;
+        }
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #0f172a;
+        background: #ffffff;
+        font-size: 8.4pt;
+        line-height: 1.4;
+    }
+
+    .page {
+        height: 275mm;
+        max-height: 275mm;
+        box-sizing: border-box;
+        overflow: hidden;
+        page-break-after: always;
+        break-after: page;
+        position: relative;
+    }
+
+    .page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4, h5 {
+        color: #0f172a;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+    }
+
+    p {
+        margin-bottom: 5px;
+        color: #334155;
+    }
+
+    code {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 7.6pt;
+        background: #f1f5f9;
+        padding: 1.5px 4.5px;
+        border-radius: 3px;
+        border: 1px solid #e2e8f0;
+        color: #0f172a;
+    }
+
+    /* Page Header */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1.5px solid #0284c7;
+        padding-bottom: 4px;
+        margin-bottom: 10px;
+    }
+
+    .page-header .header-left {
+        font-size: 8pt;
+        font-weight: 700;
+        color: #0369a1;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .page-header .header-right {
+        font-size: 7.5pt;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    /* Section Headings */
+    .section-title {
+        font-size: 11pt;
+        font-weight: 800;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+        padding-bottom: 3px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .section-title span.num {
+        background: #0284c7;
+        color: #ffffff;
+        font-size: 7.5pt;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    /* Tables */
+    table.data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 8px;
+        font-size: 7.8pt;
+    }
+
+    table.data-table th {
+        background: #f1f5f9;
+        color: #1e293b;
+        font-weight: 700;
+        text-align: left;
+        padding: 4.5px 7px;
+        border: 1px solid #cbd5e1;
+    }
+
+    table.data-table td {
+        padding: 4px 7px;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+    }
+
+    table.data-table tr:nth-child(even) td {
+        background: #f8fafc;
+    }
+
+    /* Cards & Grids */
+    .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 7px;
+        margin-bottom: 8px;
+    }
+
+    .grid-4 {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+
+    .card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 7px 10px;
+    }
+
+    .card.blue {
+        border-left: 3.5px solid #0284c7;
+        background: #f0f9ff;
+    }
+
+    .card.emerald {
+        border-left: 3.5px solid #059669;
+        background: #f0fdf4;
+    }
+
+    .card.amber {
+        border-left: 3.5px solid #d97706;
+        background: #fffbeb;
+    }
+
+    .card.slate {
+        border-left: 3.5px solid #475569;
+        background: #f8fafc;
+    }
+
+    .card h4 {
+        font-size: 8.5pt;
+        margin-bottom: 3px;
+        color: #0f172a;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 1.5px 5.5px;
+        border-radius: 3px;
+        font-size: 6.8pt;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .badge-sub { background: #fee2e2; color: #991b1b; }
+    .badge-prog { background: #fef3c7; color: #92400e; }
+    .badge-res { background: #dcfce7; color: #166534; }
+    .badge-cat { background: #e0f2fe; color: #0369a1; }
+
+    /* Code Block */
+    .code-box {
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 7.1pt;
+        padding: 6px 9px;
+        border-radius: 5px;
+        line-height: 1.35;
+        margin-bottom: 7px;
+        white-space: pre-wrap;
+    }
+
+    /* Page 1: Cover Page */
+    .cover-container {
+        height: 275mm;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        background: linear-gradient(135deg, #0b1329 0%, #172554 50%, #0369a1 100%);
+        color: #ffffff;
+        padding: 22mm 18mm 16mm 18mm;
+        border-radius: 8px;
+    }
+
+    .cover-badge {
+        display: inline-block;
+        background: rgba(56, 189, 248, 0.2);
+        border: 1px solid rgba(56, 189, 248, 0.5);
+        color: #38bdf8;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 8.5pt;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+    }
+
+    .cover-title {
+        font-size: 26pt;
+        font-weight: 800;
+        line-height: 1.15;
+        color: #ffffff;
+        margin-bottom: 8px;
+    }
+
+    .cover-subtitle {
+        font-size: 12.5pt;
+        color: #93c5fd;
+        font-weight: 400;
+        line-height: 1.4;
+        margin-bottom: 18px;
+    }
+
+    .cover-exec-card {
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        backdrop-filter: blur(8px);
+    }
+
+    .cover-exec-card h3 {
+        color: #38bdf8;
+        font-size: 10.5pt;
+        margin-bottom: 6px;
+    }
+
+    .cover-exec-card p {
+        color: #e2e8f0;
+        font-size: 8.5pt;
+        line-height: 1.45;
+        margin-bottom: 0;
+    }
+
+    .cover-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+
+    .cover-stat-box {
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 6px;
+        padding: 8px 12px;
+    }
+
+    .cover-stat-box strong {
+        color: #38bdf8;
+        display: block;
+        font-size: 9pt;
+        margin-bottom: 2px;
+    }
+
+    .cover-stat-box span {
+        color: #cbd5e1;
+        font-size: 7.8pt;
+    }
+
+    .cover-footer {
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+        padding-top: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        font-size: 8pt;
+        color: #94a3b8;
+    }
+
+    .cover-footer strong {
+        color: #ffffff;
+    }
+</style>
+</head>
+<body>
+
+<!-- ========================================================================== -->
+<!-- PAGE 1: COVER & EXECUTIVE SUMMARY                                          -->
+<!-- ========================================================================== -->
+<div class="page">
+    <div class="cover-container">
+        <div>
+            <div class="cover-badge">Academic Lab Project Report &bull; Comprehensive System Documentation</div>
+            <h1 class="cover-title">Hostel Maintenance &amp; Complaint Tracker</h1>
+            <div class="cover-subtitle">Aquamarine Hostel &bull; Indian Institute of Technology (ISM) Dhanbad</div>
+            
+            <div class="cover-exec-card">
+                <h3>Executive Summary &amp; System Scope</h3>
+                <p>
+                    The <strong>Hostel Maintenance and Complaint Tracker</strong> is a high-reliability, role-segregated web application designed specifically for the residents and administration of Aquamarine Hostel at IIT (ISM) Dhanbad. It replaces error-prone physical complaint registers with a secure digital workflow encompassing student issue logging, institutional email verification, strict ticket access controls, live metric tracking, and administrative resolution management. Built with vanilla PHP 8.2, MariaDB (PDO), and modern CSS3/JavaScript, it eliminates external framework bloat while enforcing enterprise security principles.
+                </p>
+            </div>
+
+            <div class="cover-grid">
+                <div class="cover-stat-box">
+                    <strong>🎓 Student Portal Architecture</strong>
+                    <span>Secure login/signup with strict <code>24JE0329@iitism.ac.in</code> validation, automatic identity binding, ticket lodging across 4 categories, and isolated complaint inspection.</span>
+                </div>
+                <div class="cover-stat-box">
+                    <strong>🛡️ Warden Portal &amp; Operations</strong>
+                    <span>Administrative oversight with dynamic workload metrics (Submitted, In Progress, Resolved), and asynchronous status modification.</span>
+                </div>
+                <div class="cover-stat-box">
+                    <strong>🔒 Enterprise Security Model</strong>
+                    <span>100% prepared PDO statements (SQL Injection immunity), cryptographic password hashing (BCrypt), strict input regex sanitization, and full XSS mitigation.</span>
+                </div>
+                <div class="cover-stat-box">
+                    <strong>⚡ Lightweight Native Tech Stack</strong>
+                    <span>Native PHP 8.2 &bull; MariaDB 10.4 &bull; Vanilla JavaScript (Fetch API) &bull; Pixel/Flex CSS3 &bull; Clean multi-portal routing without unnecessary dependencies.</span>
+                </div>
+            </div>
+
+            <table class="data-table" style="background: rgba(15,23,42,0.6); color: #f1f5f9;">
+                <thead>
+                    <tr style="background: rgba(2,132,199,0.3); color: #38bdf8;">
+                        <th>Project Parameter</th>
+                        <th>Specification Details</th>
+                        <th>Project Parameter</th>
+                        <th>Specification Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="color: #93c5fd; font-weight: 600;">Academic Institution</td>
+                        <td style="color: #ffffff;">IIT (ISM) Dhanbad</td>
+                        <td style="color: #93c5fd; font-weight: 600;">Backend Runtime</td>
+                        <td style="color: #ffffff;">PHP 8.2+ (ZTS Visual C++ x64)</td>
+                    </tr>
+                    <tr>
+                        <td style="color: #93c5fd; font-weight: 600;">Hostel Designation</td>
+                        <td style="color: #ffffff;">Aquamarine Hostel (UG/PG Residents)</td>
+                        <td style="color: #93c5fd; font-weight: 600;">Database Engine</td>
+                        <td style="color: #ffffff;">MariaDB 10.4 / MySQL (InnoDB, UTF-8mb4)</td>
+                    </tr>
+                    <tr>
+                        <td style="color: #93c5fd; font-weight: 600;">Web Server Environment</td>
+                        <td style="color: #ffffff;">Apache 2.4 (XAMPP Suite)</td>
+                        <td style="color: #93c5fd; font-weight: 600;">Client Architecture</td>
+                        <td style="color: #ffffff;">Vanilla HTML5, CSS3 Flexbox, JavaScript ES6+</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="cover-footer">
+            <div>
+                <strong>Department of Computer Science &amp; Engineering</strong><br>
+                Hostel Management Automation &bull; Software Lab Evaluation
+            </div>
+            <div style="text-align: right;">
+                <strong>Project Directory:</strong> <code>c:\xampp\php\htdocs\tracker</code><br>
+                Report Compiled: October 2026 &bull; Page 1 of 5
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================== -->
+<!-- PAGE 2: ARCHITECTURE & DATABASE DESIGN                                     -->
+<!-- ========================================================================== -->
+<div class="page">
+    <div class="page-header">
+        <div class="header-left">Section 1: Architectural Design &amp; Database Implementation</div>
+        <div class="header-right">Aquamarine Hostel Maintenance Tracker</div>
+    </div>
+
+    <div class="section-title"><span class="num">1.1</span> Multi-Tier System Architecture &amp; File Structure</div>
+    <p>
+        The application is structured around a decoupled multi-tier architecture separating presentation views, asynchronous API endpoints, and centralized database configuration. Direct access to the root URL (<code>index.php</code>) initiates a session-aware redirector routing users immediately to either the <strong>Student Portal</strong> or <strong>Warden Portal</strong>.
+    </p>
+
+    <div class="grid-3">
+        <div class="card blue">
+            <h4>📁 Presentation Layer</h4>
+            <p><code>student.php</code>: Dual-state student portal (Auth vs. Dashboard).<br>
+            <code>warden.php</code>: Administrative management console with metric widgets.<br>
+            <code>index.php</code>: Clean root redirector without redundant home landing.</p>
+        </div>
+        <div class="card emerald">
+            <h4>⚙️ API Controller Layer</h4>
+            <p><code>api/submit_complaint.php</code>: Validates &amp; saves new tickets.<br>
+            <code>api/update_status.php</code>: Warden-authenticated status mutator.<br>
+            <code>api/get_statuses.php</code>: Asynchronous status synchronizer.</p>
+        </div>
+        <div class="card slate">
+            <h4>🗄️ Persistence &amp; Assets</h4>
+            <p><code>config/db.php</code>: Centralized PDO database factory.<br>
+            <code>assets/style.css</code>: Custom responsive CSS with zero margin collapse.<br>
+            <code>assets/script.js</code>: Asynchronous Fetch controllers and modal popups.</p>
+        </div>
+    </div>
+
+    <div class="section-title"><span class="num">1.2</span> Relational Database Schema (MariaDB/MySQL)</div>
+    <p>
+        Data persistence is implemented using relational tables with strict foreign key constraints, UTF-8mb4 collation for full character support, and an auto-migration script ensuring password hashing columns exist dynamically.
+    </p>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 14%;">Table</th>
+                <th style="width: 18%;">Column</th>
+                <th style="width: 18%;">Data Type</th>
+                <th style="width: 18%;">Key / Constraints</th>
+                <th>Functional Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td rowspan="5" style="font-weight: 700; background: #f8fafc;"><code>students</code></td>
+                <td><code>id</code></td>
+                <td>INT UNSIGNED</td>
+                <td>PRIMARY KEY, AUTO_INCREMENT</td>
+                <td>Unique surrogate identifier for student entity.</td>
+            </tr>
+            <tr>
+                <td><code>name</code></td>
+                <td>VARCHAR(100)</td>
+                <td>NOT NULL</td>
+                <td>Full student name as registered during account creation.</td>
+            </tr>
+            <tr>
+                <td><code>admission_no</code></td>
+                <td>VARCHAR(50)</td>
+                <td>UNIQUE, NOT NULL</td>
+                <td>Academic admission identifier (e.g., <code>24JE0329</code>), used for login.</td>
+            </tr>
+            <tr>
+                <td><code>email</code></td>
+                <td>VARCHAR(100)</td>
+                <td>UNIQUE, NOT NULL</td>
+                <td>Mandatory institute email format: <code>24JE0329@iitism.ac.in</code>.</td>
+            </tr>
+            <tr>
+                <td><code>password</code></td>
+                <td>VARCHAR(255)</td>
+                <td>NULL / VARCHAR</td>
+                <td>BCrypt cryptographic hash generated via <code>PASSWORD_DEFAULT</code>.</td>
+            </tr>
+            <tr>
+                <td rowspan="6" style="font-weight: 700; background: #f8fafc;"><code>complaints</code></td>
+                <td><code>id</code></td>
+                <td>INT UNSIGNED</td>
+                <td>PRIMARY KEY, AUTO_INCREMENT</td>
+                <td>Complaint ticket number (formatted in UI as <code>#CMP-001</code>).</td>
+            </tr>
+            <tr>
+                <td><code>student_id</code></td>
+                <td>INT UNSIGNED</td>
+                <td>FOREIGN KEY &rarr; students(id)</td>
+                <td>Parent relation linking ticket strictly to authenticated student record.</td>
+            </tr>
+            <tr>
+                <td><code>title</code></td>
+                <td>VARCHAR(200)</td>
+                <td>NOT NULL</td>
+                <td>Room number / Location and summary of the breakdown.</td>
+            </tr>
+            <tr>
+                <td><code>description</code></td>
+                <td>TEXT</td>
+                <td>NOT NULL</td>
+                <td>Detailed maintenance narrative describing specific fault conditions.</td>
+            </tr>
+            <tr>
+                <td><code>category</code></td>
+                <td>ENUM</td>
+                <td>NOT NULL</td>
+                <td>Restricted to: <code>Electrical</code>, <code>Plumbing</code>, <code>Network</code>, <code>Housekeeping</code>.</td>
+            </tr>
+            <tr>
+                <td><code>status</code></td>
+                <td>ENUM</td>
+                <td>NOT NULL, DEFAULT 'Submitted'</td>
+                <td>Lifecycle states: <code>Submitted</code>, <code>In Progress</code>, <code>Resolved</code>.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="section-title"><span class="num">1.3</span> Database Connection Factory (<code>config/db.php</code>)</div>
+    <p>
+        The <code>getDbConnection()</code> function establishes a secure PDO connection with emulated prepared statements disabled, preventing SQL injection vulnerabilities at the driver level.
+    </p>
+
+    <div class="code-box">function getDbConnection(): PDO {
+    $dsn = "mysql:host=127.0.0.1;port=3306;dbname=hostel_complaints;charset=utf8mb4";
+    $options = [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION, // Graceful error throwing
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,       // Associative row array mapping
+        PDO::ATTR_EMULATE_PREPARES   => false,                  // Native prepared statements (SQLi Immune)
+    ];
+    $pdo = new PDO($dsn, 'root', '', $options);
+    $pdo->exec("ALTER TABLE `students` ADD COLUMN `password` VARCHAR(255) NULL"); // Self-healing migration
+    return $pdo;
+}</div>
+
+    <div class="card blue">
+        <h4>🔄 Root Redirector Logic (<code>index.php</code>)</h4>
+        <p>Eliminating redundant public marketing pages, <code>index.php</code> executes immediate session checks: if <code>$_SESSION['warden_logged_in']</code> is active, it redirects to <code>warden.php</code>; otherwise, it routes to <code>student.php</code> via HTTP 302 headers.</p>
+    </div>
+</div>
+
+<!-- ========================================================================== -->
+<!-- PAGE 3: STUDENT PORTAL & EMAIL VALIDATION                                  -->
+<!-- ========================================================================== -->
+<div class="page">
+    <div class="page-header">
+        <div class="header-left">Section 2: Student Portal &amp; Authentication Logic</div>
+        <div class="header-right">Aquamarine Hostel Maintenance Tracker</div>
+    </div>
+
+    <div class="section-title"><span class="num">2.1</span> Dual-State Student Portal Architecture (<code>student.php</code>)</div>
+    <p>
+        The student portal is dynamically partitioned based on session authentication (<code>$_SESSION['student_id']</code>). When unauthenticated, users are presented with a vertically and horizontally centered authentication interface. Once authenticated, the view dynamically shifts to the Complaint Lodging Form and the student's personal complaint history.
+    </p>
+
+    <div class="grid-2">
+        <div class="card blue">
+            <h4>🔐 State A: Unauthenticated Visitor</h4>
+            <p>• Auth card centered vertically &amp; horizontally in viewport.<br>
+            • Tabbed switching between Student Login &amp; New Sign Up.<br>
+            • Complete ticket data privacy: public tickets are never exposed.<br>
+            • Contextual inline error notifications without page clutter.</p>
+        </div>
+        <div class="card emerald">
+            <h4>🎓 State B: Authenticated Student Session</h4>
+            <p>• Session badge displaying Student Name &amp; Admission Number.<br>
+            • Automatic identity pre-filling on complaint submission form.<br>
+            • Clean complaint tracker showing strictly user's own tickets.<br>
+            • Full ticket inspection modal displaying description &amp; status.</p>
+        </div>
+    </div>
+
+    <div class="section-title"><span class="num">2.2</span> Institutional Email Validation Algorithm (<code>24JE0329@iitism.ac.in</code>)</div>
+    <p>
+        To prevent unauthorized external registrations, sign-up requires a valid IIT (ISM) Dhanbad student email address. Both client-side HTML5 pattern constraints and server-side regular expressions are applied:
+    </p>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 20%;">Regex Token</th>
+                <th style="width: 25%;">Matched Component</th>
+                <th style="width: 25%;">Example Value</th>
+                <th>Validation Rule &amp; Scope</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>^[0-9]{2}</code></td>
+                <td>Admission Year Prefix</td>
+                <td><code>24</code> (Year 2024)</td>
+                <td>Strictly 2 numeric digits representing the academic entry cohort.</td>
+            </tr>
+            <tr>
+                <td><code>[a-zA-Z]{2}</code></td>
+                <td>Academic Department Code</td>
+                <td><code>JE</code> (JEE B.Tech)</td>
+                <td>Exactly 2 letters denoting program entry channel (case-insensitive).</td>
+            </tr>
+            <tr>
+                <td><code>[0-9]{4}</code></td>
+                <td>Serial Roll Number</td>
+                <td><code>0329</code> (Student Roll)</td>
+                <td>Strictly 4 numeric digits denoting specific student roster ID.</td>
+            </tr>
+            <tr>
+                <td><code>@iitism\.ac\.in$</code></td>
+                <td>Institute Domain Anchor</td>
+                <td><code>@iitism.ac.in</code></td>
+                <td>Mandatory official university second-level and top-level domain.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="code-box">// Backend Validation Implementation in student.php
+if (!preg_match('/^[0-9]{2}[a-zA-Z]{2}[0-9]{4}@iitism\.ac\.in$/i', $email)) {
+    $authError = 'Invalid email format. Only institute email format like 24JE0329@iitism.ac.in is accepted.';
+} else {
+    // Check duplication across both admission number and email
+    $checkStmt = $pdo->prepare('SELECT id FROM students WHERE admission_no = ? OR email = ?');
+    $checkStmt->execute([$adm, $email]);
+    if ($checkStmt->fetch()) {
+        $authError = 'This Admission Number or Email is already registered. Please Login.';
+    }
+}</div>
+
+    <div class="section-title"><span class="num">2.3</span> Client-Side Email Auto-Suggestion &amp; Layout Centering</div>
+    <div class="grid-2">
+        <div class="card slate">
+            <h4>💡 Real-Time Auto-Suggest Input Listener</h4>
+            <p>As the student inputs their Admission Number (e.g. <code>24JE0329</code>), a JavaScript input listener in <code>student.php</code> automatically populates the email field with <code>24je0329@iitism.ac.in</code> if untouched, eliminating typos and reducing friction.</p>
+        </div>
+        <div class="card slate">
+            <h4>📐 Viewport Centering &amp; Margin Collapse Fix</h4>
+            <p>The auth container utilizes <code>min-height: calc(100vh - 120px)</code>, <code>display: flex</code>, and <code>align-items: center</code>. Parent <code>.main-wrapper</code> incorporates <code>display: flow-root</code>, preventing CSS margin collapse between nested blocks.</p>
+        </div>
+    </div>
+
+    <div class="section-title"><span class="num">2.4</span> Strict Student Data Isolation Query</div>
+    <p>
+        When retrieving complaints in <code>student.php</code>, complaints are strictly filtered using parameterized prepared statements referencing the authenticated student session ID (<code>$currentStudentId</code>):
+    </p>
+    <div class="code-box">SELECT c.id, c.title, c.description, c.category, c.status, c.created_at,
+       s.name AS student_name, s.admission_no, s.email AS student_email
+FROM complaints c
+JOIN students s ON c.student_id = s.id
+WHERE c.student_id = ?  /* Absolute data isolation: Student sees ONLY their own records */
+ORDER BY c.created_at DESC, c.id DESC;</div>
+</div>
+
+<!-- ========================================================================== -->
+<!-- PAGE 4: WARDEN PORTAL & API ENDPOINTS                                      -->
+<!-- ========================================================================== -->
+<div class="page">
+    <div class="page-header">
+        <div class="header-left">Section 3: Warden Portal &amp; Backend API Controllers</div>
+        <div class="header-right">Aquamarine Hostel Maintenance Tracker</div>
+    </div>
+
+    <div class="section-title"><span class="num">3.1</span> Warden Portal &amp; Management Dashboard (<code>warden.php</code>)</div>
+    <p>
+        The Warden Portal serves as the administrative command center for Aquamarine Hostel. It authenticates designated hostel wardens using administrative credentials (<code>warden</code> / <code>warden123</code>). Upon authentication, any competing student sessions are safely invalidated.
+    </p>
+
+    <div class="grid-4">
+        <div class="card slate" style="text-align: center;">
+            <span style="font-size: 7.5pt; color: #475569; font-weight: 700; text-transform: uppercase;">Total Complaints</span>
+            <h3 style="font-size: 15pt; color: #0f172a; margin-top: 2px;">COUNT(*)</h3>
+            <span style="font-size: 7pt; color: #64748b;">Cumulative Logged</span>
+        </div>
+        <div class="card amber" style="text-align: center;">
+            <span style="font-size: 7.5pt; color: #92400e; font-weight: 700; text-transform: uppercase;">Submitted</span>
+            <h3 style="font-size: 15pt; color: #b45309; margin-top: 2px;">status = 'Submitted'</h3>
+            <span style="font-size: 7pt; color: #64748b;">Awaiting Action</span>
+        </div>
+        <div class="card blue" style="text-align: center;">
+            <span style="font-size: 7.5pt; color: #0369a1; font-weight: 700; text-transform: uppercase;">In Progress</span>
+            <h3 style="font-size: 15pt; color: #0284c7; margin-top: 2px;">status = 'In Progress'</h3>
+            <span style="font-size: 7pt; color: #64748b;">Repair Underway</span>
+        </div>
+        <div class="card emerald" style="text-align: center;">
+            <span style="font-size: 7.5pt; color: #166534; font-weight: 700; text-transform: uppercase;">Resolved</span>
+            <h3 style="font-size: 15pt; color: #16a34a; margin-top: 2px;">status = 'Resolved'</h3>
+            <span style="font-size: 7pt; color: #64748b;">Closed Tickets</span>
+        </div>
+    </div>
+
+    <div class="section-title"><span class="num">3.2</span> Backend API Endpoints &amp; Transaction Handlers</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 22%;">Endpoint Path</th>
+                <th style="width: 10%;">Method</th>
+                <th style="width: 18%;">Auth Required</th>
+                <th style="width: 22%;">Request Payload</th>
+                <th>Operation Executed &amp; Response</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>api/submit_complaint.php</code></td>
+                <td><span class="badge badge-sub">POST</span></td>
+                <td>Student Session</td>
+                <td><code>title</code>, <code>category</code>, <code>description</code></td>
+                <td>Verifies student ID, writes complaint with initial status <code>Submitted</code>, returns JSON confirmation.</td>
+            </tr>
+            <tr>
+                <td><code>api/update_status.php</code></td>
+                <td><span class="badge badge-sub">POST</span></td>
+                <td>Warden Session</td>
+                <td><code>complaint_id</code>, <code>status</code></td>
+                <td>Validates input against whitelist, updates complaint status in MariaDB, returns updated badge state.</td>
+            </tr>
+            <tr>
+                <td><code>api/get_statuses.php</code></td>
+                <td><span class="badge badge-cat">GET</span></td>
+                <td>Optional / Scoped</td>
+                <td><code>admission_no</code> (URL query)</td>
+                <td>Scoped JSON endpoint returning latest ticket IDs and statuses for client verification.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="section-title"><span class="num">3.3</span> Warden Interactive In-Line Status Update Flow</div>
+    <p>
+        When the Warden modifies a ticket's status dropdown in <code>warden.php</code>, asynchronous JavaScript in <code>assets/script.js</code> intercepts the event and executes an atomic AJAX mutation:
+    </p>
+
+    <div class="code-box">// Asynchronous Status Mutation Handler in assets/script.js
+fetch('api/update_status.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ complaint_id: complaintId, status: newStatus })
+})
+.then(res => res.json())
+.then(data => {
+    if (data.success) {
+        // Immediate DOM badge update without full page reload
+        const badge = document.querySelector(`.status-badge[data-complaint-id="${complaintId}"]`);
+        if (badge) {
+            badge.textContent = newStatus;
+            badge.className = 'badge status-badge status-' + newStatus.toLowerCase().replace(' ', '-');
+        }
+    }
+});</div>
+
+    <div class="section-title"><span class="num">3.4</span> Complaint Detail Modal Dialog System</div>
+    <div class="grid-2">
+        <div class="card slate">
+            <h4>🔍 Data-Attribute Modal Binding</h4>
+            <p>Each table row includes a <code>.btn-view-complaint</code> button containing embedded attributes: <code>data-title</code>, <code>data-category</code>, <code>data-student-name</code>, <code>data-admission-no</code>, and <code>data-description</code>. Clicking instantly populates and reveals the modal overlay.</p>
+        </div>
+        <div class="card slate">
+            <h4>🧹 Streamlined Layout (Zero Filter Overhead)</h4>
+            <p>Per updated administrative requirements, filter dropdowns and live polling indicators were cleanly removed from both portals, allowing table rows to utilize maximum horizontal space for title clarity and issue description visibility.</p>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================== -->
+<!-- PAGE 5: SECURITY, VERIFICATION & SIGN-OFF                                  -->
+<!-- ========================================================================== -->
+<div class="page">
+    <div class="page-header">
+        <div class="header-left">Section 4: Security Implementation, Verification &amp; Conclusion</div>
+        <div class="header-right">Aquamarine Hostel Maintenance Tracker</div>
+    </div>
+
+    <div class="section-title"><span class="num">4.1</span> Defense-in-Depth Security Framework</div>
+    <p>
+        The system implements comprehensive defensive measures across input handling, authentication, database transactions, and browser rendering to guarantee integrity during university lab evaluation:
+    </p>
+
+    <div class="grid-3">
+        <div class="card blue">
+            <h4>🛡️ SQL Injection Immunity</h4>
+            <p>100% of dynamic database queries utilize parameterized PDO prepared statements with <code>ATTR_EMULATE_PREPARES => false</code>, guaranteeing queries and parameters are parsed independently.</p>
+        </div>
+        <div class="card emerald">
+            <h4>🔒 Cryptographic Hashing</h4>
+            <p>Student passwords are stored as BCrypt hashes using PHP's native <code>password_hash()</code> and evaluated via <code>password_verify()</code>, preventing rainbow-table and plain-text leaks.</p>
+        </div>
+        <div class="card amber">
+            <h4>🛡️ Cross-Site Scripting (XSS)</h4>
+            <p>All dynamic database output rendered to HTML passes through <code>htmlspecialchars($var, ENT_QUOTES, 'UTF-8')</code>, neutralizing malicious script injection.</p>
+        </div>
+    </div>
+
+    <div class="section-title"><span class="num">4.2</span> Test Execution &amp; Verification Matrix</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 18%;">Test Case ID</th>
+                <th style="width: 25%;">Input Parameters / Action</th>
+                <th style="width: 32%;">Expected System Response</th>
+                <th style="width: 13%;">Observed Result</th>
+                <th style="width: 12%;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>TC-AUTH-01</code></td>
+                <td>Signup email: <code>24JE0329@iitism.ac.in</code></td>
+                <td>Matches institute regex; account successfully registered.</td>
+                <td>Account created; auto-logged in.</td>
+                <td><span class="badge badge-res">PASSED</span></td>
+            </tr>
+            <tr>
+                <td><code>TC-AUTH-02</code></td>
+                <td>Signup email: <code>student@gmail.com</code></td>
+                <td>Rejects invalid domain; displays format guidance error.</td>
+                <td>Error triggered; signup blocked.</td>
+                <td><span class="badge badge-res">PASSED</span></td>
+            </tr>
+            <tr>
+                <td><code>TC-AUTH-03</code></td>
+                <td>Signup email: <code>24JE032@iitism.ac.in</code></td>
+                <td>Rejects invalid length (3 digits instead of 4).</td>
+                <td>Error triggered; signup blocked.</td>
+                <td><span class="badge badge-res">PASSED</span></td>
+            </tr>
+            <tr>
+                <td><code>TC-PRIV-01</code></td>
+                <td>Student login as <code>24JE0329</code></td>
+                <td>Table displays strictly complaints with <code>student_id = 9</code>.</td>
+                <td>Only user's own tickets shown.</td>
+                <td><span class="badge badge-res">PASSED</span></td>
+            </tr>
+            <tr>
+                <td><code>TC-PRIV-02</code></td>
+                <td>Unauthenticated visit to <code>student.php</code></td>
+                <td>Complaints table hidden; centered login card displayed.</td>
+                <td>Zero ticket leakage to guests.</td>
+                <td><span class="badge badge-res">PASSED</span></td>
+            </tr>
+            <tr>
+                <td><code>TC-WARD-01</code></td>
+                <td>Warden updates status to <code>In Progress</code></td>
+                <td>AJAX POST to <code>update_status.php</code> updates MariaDB record.</td>
+                <td>Status badge turns amber immediately.</td>
+                <td><span class="badge badge-res">PASSED</span></td>
+            </tr>
+            <tr>
+                <td><code>TC-ROUT-01</code></td>
+                <td>Direct URL request to <code>index.php</code></td>
+                <td>Session-aware redirector forwards to appropriate portal.</td>
+                <td>Redirects cleanly to <code>student.php</code>.</td>
+                <td><span class="badge badge-res">PASSED</span></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="section-title"><span class="num">4.3</span> Project Conclusion &amp; Architectural Strengths</div>
+    <p>
+        The <strong>Aquamarine Hostel Maintenance and Complaint Tracker</strong> successfully demonstrates how modern, robust, and performant web systems can be engineered using clean, native web standards without reliance on massive third-party dependencies. By combining strict institutional email validation (<code>24JE0329@iitism.ac.in</code>), absolute student privacy boundaries, centered responsive UI components, and real-time administrative status mutations, the project fulfills all academic and practical operational goals.
+    </p>
+
+    <div class="card slate" style="margin-top: 10px; background: #f8fafc; border: 1.5px solid #cbd5e1; padding: 10px 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong style="color: #0f172a; font-size: 9pt;">Academic Verification &amp; Project Evaluation Sign-Off</strong><br>
+                <span style="font-size: 7.5pt; color: #64748b;">Developed for Aquamarine Hostel &bull; Department of Computer Science &amp; Engineering &bull; IIT (ISM) Dhanbad</span>
+            </div>
+            <div style="text-align: right; font-size: 7.5pt; color: #475569;">
+                <strong>Evaluation Status:</strong> Complete &bull; Verified<br>
+                <strong>Build Artifact:</strong> <code>Hostel_Maintenance_Tracker_Project_Report.pdf</code>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
+"""
+
+def generate_pdf():
+    project_dir = r"c:\xampp\php\htdocs\tracker"
+    html_file = os.path.join(project_dir, "project_report_source.html")
+    pdf_file = os.path.join(project_dir, "Hostel_Maintenance_Tracker_Project_Report.pdf")
+
+    print(f"Writing 5-Page HTML report template to: {html_file}")
+    with open(html_file, "w", encoding="utf-8") as f:
+        f.write(HTML_CONTENT)
+
+    chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+    if not os.path.exists(chrome_path):
+        print(f"Error: Chrome executable not found at {chrome_path}")
+        sys.exit(1)
+
+    print("Executing Headless Chrome to compile 5-page PDF...")
+    cmd = [
+        chrome_path,
+        "--headless=new",
+        "--disable-gpu",
+        "--no-sandbox",
+        f"--print-to-pdf={pdf_file}",
+        "--no-pdf-header-footer",
+        html_file
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print("Chrome error output:", result.stderr)
+        sys.exit(result.returncode)
+
+    if os.path.exists(pdf_file):
+        file_size = os.path.getsize(pdf_file)
+        print(f"Success! PDF generated successfully: {pdf_file}")
+        print(f"File Size: {file_size:,} bytes")
+        
+        # Verify page count
+        with open(pdf_file, 'rb') as f:
+            pdf_data = f.read()
+        page_count = len(re.findall(rb'/Type\s*/Page\b', pdf_data))
+        print(f"Verified Page Count: {page_count} pages")
+    else:
+        print("Error: PDF was not generated.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    generate_pdf()

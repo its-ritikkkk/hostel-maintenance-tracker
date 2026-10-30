@@ -16,6 +16,8 @@ body {
     color: #1e293b;
     line-height: 1.5;
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 /* --- 2. Header & Navigation --- */
@@ -77,6 +79,23 @@ body {
     width: 1100px;
     margin: 80px auto 24px auto;
     padding: 0 16px;
+    flex: 1;
+    display: flow-root; /* Prevents margin collapsing with first child */
+}
+
+.main-wrapper.auth-main {
+    margin-top: 60px;
+    margin-bottom: 0;
+    min-height: calc(100vh - 120px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.main-wrapper.auth-main .auth-card {
+    margin: 16px 0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
 }
 
 /* --- 4. Hero Banner --- */
@@ -182,15 +201,16 @@ body {
 
 /* --- 7. Student Session Bar --- */
 .student-bar {
-    background-color: #eff6ff;
+    
     border: 1px solid #bfdbfe;
     border-radius: 8px;
     padding: 12px 16px;
+    margin-top: 24px;
     margin-bottom: 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 14px;
+    
 }
 
 /* --- 7b. Auth Card (Login & Signup) --- */
@@ -360,25 +380,6 @@ textarea.form-control {
     gap: 6px;
     font-size: 13px;
     color: #64748b;
-}
-
-.refresh-status-box {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: #64748b;
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    padding: 4px 10px;
-    border-radius: 20px;
-}
-
-.pulse-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 8px;
-    background-color: #16a34a;
 }
 
 /* --- 11. Complaints Table --- */
@@ -595,5 +596,5 @@ textarea.form-control {
     text-align: center;
     padding: 16px;
     font-size: 13px;
-    margin-top: 40px;
+    margin-top: auto;
 }

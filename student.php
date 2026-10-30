@@ -13,7 +13,6 @@ $pdo = getDbConnection();
 // Action: Student Logout
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     unset($_SESSION['student_id'], $_SESSION['student_name'], $_SESSION['student_admission_no'], $_SESSION['student_email']);
-    $_SESSION['flash_success'] = 'You have logged out successfully.';
     header('Location: student.php');
     exit;
 }
@@ -43,7 +42,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auth_type'])) {
                 $_SESSION['student_name']         = $student['name'];
                 $_SESSION['student_admission_no'] = $student['admission_no'];
                 $_SESSION['student_email']        = $student['email'];
-                $_SESSION['flash_success']        = 'Welcome back, ' . $student['name'] . '!';
                 header('Location: student.php');
                 exit;
             } else {
@@ -58,34 +56,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auth_type'])) {
     if ($authType === 'signup') {
         $name  = trim($_POST['name'] ?? '');
         $adm   = strtoupper(trim($_POST['admission_no'] ?? ''));
-        $email = trim($_POST['email'] ?? '');
+        $email = strtolower(trim($_POST['email'] ?? ''));
         $pwd   = trim($_POST['password'] ?? '');
 
         if (!empty($name) && !empty($adm) && !empty($email) && !empty($pwd)) {
-            // Check if admission number is already registered
-            $checkStmt = $pdo->prepare('SELECT id FROM students WHERE admission_no = ?');
-            $checkStmt->execute([$adm]);
-
-            if ($checkStmt->fetch()) {
-                $authError = 'This Admission Number is already registered. Please Login.';
+            // Validate email format strictly: e.g. 24JE0329@iitism.ac.in
+            if (!preg_match('/^[0-9]{2}[a-zA-Z]{2}[0-9]{4}@iitism\.ac\.in$/i', $email)) {
+                $authError = 'Invalid email format. Only institute email format like 24JE0329@iitism.ac.in is accepted.';
             } else {
-                // Hash password and insert into students table
-                $hashedPw = password_hash($pwd, PASSWORD_DEFAULT);
-                $insertStmt = $pdo->prepare('INSERT INTO students (name, admission_no, email, password) VALUES (?, ?, ?, ?)');
-                $insertStmt->execute([$name, $adm, $email, $hashedPw]);
-                $newStudentId = (int)$pdo->lastInsertId();
+                // Check if admission number or email is already registered
+                $checkStmt = $pdo->prepare('SELECT id FROM students WHERE admission_no = ? OR email = ?');
+                $checkStmt->execute([$adm, $email]);
 
-                // Unset warden session if active
-                unset($_SESSION['warden_logged_in']);
+                if ($checkStmt->fetch()) {
+                    $authError = 'This Admission Number or Email is already registered. Please Login.';
+                } else {
+                    // Hash password and insert into students table
+                    $hashedPw = password_hash($pwd, PASSWORD_DEFAULT);
+                    $insertStmt = $pdo->prepare('INSERT INTO students (name, admission_no, email, password) VALUES (?, ?, ?, ?)');
+                    $insertStmt->execute([$name, $adm, $email, $hashedPw]);
+                    $newStudentId = (int)$pdo->lastInsertId();
 
-                // Save in session immediately
-                $_SESSION['student_id']           = $newStudentId;
-                $_SESSION['student_name']         = $name;
-                $_SESSION['student_admission_no'] = $adm;
-                $_SESSION['student_email']        = $email;
-                $_SESSION['flash_success']        = 'Account created successfully! Welcome, ' . $name . '.';
-                header('Location: student.php');
-                exit;
+                    // Unset warden session if active
+                    unset($_SESSION['warden_logged_in']);
+
+                    // Save in session immediately
+                    $_SESSION['student_id']           = $newStudentId;
+                    $_SESSION['student_name']         = $name;
+                    $_SESSION['student_admission_no'] = $adm;
+                    $_SESSION['student_email']        = $email;
+                    header('Location: student.php');
+                    exit;
+                }
             }
         } else {
             $authError = 'All fields are required to sign up.';
@@ -106,8 +108,10 @@ $flashError   = $_SESSION['flash_error'] ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
 // Retrieve complaints list:
-// If logged in -> show that student's complaints
-// If not logged in -> show all hostel complaints as public tracker
+// Student should see only his own complaints
+$complaintsList = [];
+$pageTitle = "My Maintenance Complaints";
+
 if ($isStudentLoggedIn) {
     $stmt = $pdo->prepare('
         SELECT c.id, c.title, c.description, c.category, c.status, c.created_at,
@@ -118,18 +122,8 @@ if ($isStudentLoggedIn) {
         ORDER BY c.created_at DESC, c.id DESC
     ');
     $stmt->execute([$currentStudentId]);
-    $pageTitle = "My Maintenance Complaints";
-} else {
-    $stmt = $pdo->query('
-        SELECT c.id, c.title, c.description, c.category, c.status, c.created_at,
-               s.name AS student_name, s.admission_no, s.email AS student_email
-        FROM complaints c
-        JOIN students s ON c.student_id = s.id
-        ORDER BY c.created_at DESC, c.id DESC
-    ');
-    $pageTitle = "Public Hostel Complaints Tracker";
+    $complaintsList = $stmt->fetchAll();
 }
-$complaintsList = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -149,9 +143,8 @@ $complaintsList = $stmt->fetchAll();
                 <span class="hostel-badge">Aquamarine Hostel, IIT (ISM)</span>
             </div>
             <nav class="nav-links">
-                <a href="index.php" class="nav-link">Home</a>
                 <a href="student.php" class="nav-link active">Student Portal</a>
-                <a href="warden.php" class="nav-link">Warden Dashboard</a>
+                <a href="warden.php" class="nav-link">Warden Portal</a>
                 <?php if ($isStudentLoggedIn): ?>
                     <a href="student.php?action=logout" class="nav-link" style="background-color: #dc2626;">Logout</a>
                 <?php endif; ?>
@@ -160,23 +153,19 @@ $complaintsList = $stmt->fetchAll();
     </header>
 
     <!-- Main Content Area -->
-    <main class="main-wrapper">
-
-        <!-- Flash Notifications -->
-        <?php if ($flashSuccess): ?>
-            <div class="alert alert-success">✅ <?php echo htmlspecialchars($flashSuccess); ?></div>
-        <?php endif; ?>
-        <?php if ($flashError): ?>
-            <div class="alert alert-error">⚠️ <?php echo htmlspecialchars($flashError); ?></div>
-        <?php endif; ?>
-        <?php if ($authError): ?>
-            <div class="alert alert-error">⚠️ <?php echo htmlspecialchars($authError); ?></div>
-        <?php endif; ?>
+    <main class="main-wrapper <?php echo (!$isStudentLoggedIn) ? 'auth-main' : ''; ?>">
 
         <?php if (!$isStudentLoggedIn): ?>
             <!-- ========================================== -->
             <!-- STUDENT AUTH CARD (Login / Sign Up)        -->
             <!-- ========================================== -->
+            <?php if ($authError): ?>
+                <div class="alert alert-error" style="width: 480px; margin-bottom: 16px;">⚠️ <?php echo htmlspecialchars($authError); ?></div>
+            <?php endif; ?>
+            <?php if ($flashError): ?>
+                <div class="alert alert-error" style="width: 480px; margin-bottom: 16px;">⚠️ <?php echo htmlspecialchars($flashError); ?></div>
+            <?php endif; ?>
+
             <div class="auth-card">
                 <div class="auth-tabs">
                     <button type="button" class="auth-tab-btn active" id="tabBtnLogin" onclick="switchAuthTab('login')">
@@ -221,12 +210,25 @@ $complaintsList = $stmt->fetchAll();
 
                     <div class="form-group" style="margin-bottom: 12px;">
                         <label for="signupAdm" class="form-label">Admission Number *</label>
-                        <input type="text" id="signupAdm" name="admission_no" class="form-control" placeholder="e.g. 23JE0501" required>
+                        <input type="text" id="signupAdm" name="admission_no" class="form-control" placeholder="e.g. 24JE0329" value="<?php echo htmlspecialchars($_POST['admission_no'] ?? ''); ?>" required>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 12px;">
                         <label for="signupEmail" class="form-label">Institute Email *</label>
-                        <input type="email" id="signupEmail" name="email" class="form-control" placeholder="e.g. student@iitism.ac.in" required>
+                        <input 
+                            type="email" 
+                            id="signupEmail" 
+                            name="email" 
+                            class="form-control" 
+                            placeholder="e.g. 24JE0329@iitism.ac.in" 
+                            pattern="[0-9]{2}[a-zA-Z]{2}[0-9]{4}@iitism\.ac\.in" 
+                            title="Email format must be like 24JE0329@iitism.ac.in" 
+                            value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
+                            required
+                        >
+                        <small style="color: #64748b; font-size: 12px; display: block; margin-top: 4px;">
+                            Accepted format: <strong>24JE0329@iitism.ac.in</strong>
+                        </small>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 18px;">
@@ -259,6 +261,23 @@ $complaintsList = $stmt->fetchAll();
                         btnLogin.classList.remove('active');
                     }
                 }
+
+                // Auto-suggest institute email based on admission number input
+                const admInput = document.getElementById('signupAdm');
+                const emailInput = document.getElementById('signupEmail');
+                if (admInput && emailInput) {
+                    admInput.addEventListener('input', function() {
+                        const val = this.value.trim().toLowerCase();
+                        if (val && (!emailInput.value || emailInput.value.endsWith('@iitism.ac.in'))) {
+                            emailInput.value = val + '@iitism.ac.in';
+                        }
+                    });
+                }
+
+                // Stay on signup tab if signup form was submitted
+                <?php if (isset($_POST['auth_type']) && $_POST['auth_type'] === 'signup'): ?>
+                    switchAuthTab('signup');
+                <?php endif; ?>
             </script>
 
         <?php else: ?>
@@ -266,15 +285,21 @@ $complaintsList = $stmt->fetchAll();
             <!-- LOGGED-IN STUDENT DASHBOARD               -->
             <!-- ========================================== -->
 
+            <!-- Flash Notifications -->
+            <?php if ($flashSuccess): ?>
+                <div class="alert alert-success">✅ <?php echo htmlspecialchars($flashSuccess); ?></div>
+            <?php endif; ?>
+            <?php if ($flashError): ?>
+                <div class="alert alert-error">⚠️ <?php echo htmlspecialchars($flashError); ?></div>
+            <?php endif; ?>
+
             <!-- Session Bar -->
             <div class="student-bar">
-                <div>
-                    Logged in as: <strong><?php echo htmlspecialchars($currentStudentName); ?></strong> 
-                    (Admission No: <strong><?php echo htmlspecialchars($currentAdmissionNo); ?></strong> &bull; <?php echo htmlspecialchars($currentStudentEmail); ?>)
+                <div style="display: flex; gap: 20px; align-items: center;">
+                     <h1><?php echo htmlspecialchars($currentStudentName); ?></h1> 
+                     <h1><?php echo htmlspecialchars($currentAdmissionNo); ?></h1>
                 </div>
-                <div>
-                    <a href="student.php?action=logout" class="btn btn-secondary btn-sm" style="color: #dc2626;">Logout</a>
-                </div>
+               
             </div>
 
             <!-- Lodge Complaint Form -->
@@ -329,139 +354,93 @@ $complaintsList = $stmt->fetchAll();
                 </form>
             </section>
 
-        <?php endif; ?>
-
-        <!-- Complaints List Section (Always Visible) -->
-        <section>
-            <!-- Filter Bar -->
-            <div class="filter-bar">
-                <div class="filter-controls">
-                    <div class="filter-group">
-                        <label for="categoryFilter">Category:</label>
-                        <select id="categoryFilter" class="filter-select">
-                            <option value="All">All Categories</option>
-                            <option value="Electrical">Electrical</option>
-                            <option value="Plumbing">Plumbing</option>
-                            <option value="Network">Network</option>
-                            <option value="Housekeeping">Housekeeping</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label for="statusFilter">Status:</label>
-                        <select id="statusFilter" class="filter-select">
-                            <option value="All">All Statuses</option>
-                            <option value="Submitted">Submitted</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Resolved">Resolved</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <input type="text" id="searchFilter" class="filter-select" placeholder="🔍 Search title or text...">
-                    </div>
+            <!-- Complaints List Section (Only visible to logged-in student for their own complaints) -->
+            <section style="margin-top: 2rem;">
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.15rem; color: #0f172a; margin: 0;">
+                        📋 My Maintenance Complaints (<span id="visibleComplaintsCount"><?php echo count($complaintsList); ?></span>)
+                    </h3>
                 </div>
 
-                <div class="refresh-status-box">
-                    <span class="pulse-dot"></span>
-                    <span>Live Auto-Refresh (5s)</span>
-                    <span style="color: #cbd5e1;">|</span>
-                    <span>Synced: <span id="lastSyncTime"><?php echo date('H:i:s'); ?></span></span>
-                </div>
-            </div>
-
-            <!-- Table Header -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <h3 style="font-size: 18px; color: #0f172a;">
-                    📋 <?php echo $pageTitle; ?> (<span id="visibleComplaintsCount"><?php echo count($complaintsList); ?></span>)
-                </h3>
-            </div>
-
-            <!-- Table -->
-            <div class="table-responsive">
-                <table class="complaint-table" id="complaintsTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Title & Description</th>
-                            <th>Category</th>
-                            <th>Student</th>
-                            <th>Date</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($complaintsList)): ?>
+                <!-- Table -->
+                <div class="table-responsive">
+                    <table class="complaint-table" id="complaintsTable">
+                        <thead>
                             <tr>
-                                <td colspan="7" class="empty-state">
-                                    <?php echo $isStudentLoggedIn ? "You haven't submitted any complaints yet." : "No complaints found."; ?>
-                                </td>
+                                <th>ID</th>
+                                <th>Title & Description</th>
+                                <th>Category</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Action</th>
                             </tr>
-                        <?php else: ?>
-                            <?php foreach ($complaintsList as $row): 
-                                $catClass = 'cat-' . strtolower($row['category']);
-                                $statusClass = 'status-' . strtolower(str_replace(' ', '-', $row['status']));
-                            ?>
-                                <tr 
-                                    class="complaint-row" 
-                                    data-complaint-id="<?php echo (int)$row['id']; ?>" 
-                                    data-category="<?php echo htmlspecialchars($row['category']); ?>" 
-                                    data-status="<?php echo htmlspecialchars($row['status']); ?>"
-                                >
-                                    <td class="complaint-id">#CMP-<?php echo str_pad($row['id'], 3, '0', STR_PAD_LEFT); ?></td>
-                                    <td class="complaint-title-cell">
-                                        <?php echo htmlspecialchars($row['title']); ?>
-                                        <div class="complaint-desc-snippet">
-                                            <?php echo htmlspecialchars(mb_strimwidth($row['description'], 0, 80, '...')); ?>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="category-badge <?php echo $catClass; ?>">
-                                            <?php echo htmlspecialchars($row['category']); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <strong><?php echo htmlspecialchars($row['student_name']); ?></strong>
-                                        <div style="font-size: 12px; color: #64748b;"><?php echo htmlspecialchars($row['admission_no']); ?></div>
-                                    </td>
-                                    <td style="color: #64748b; font-size: 13px; white-space: nowrap;">
-                                        <?php echo date('d M Y, h:i A', strtotime($row['created_at'])); ?>
-                                    </td>
-                                    <td>
-                                        <span 
-                                            class="badge status-badge <?php echo $statusClass; ?>" 
-                                            data-complaint-id="<?php echo (int)$row['id']; ?>"
-                                        >
-                                            <?php echo htmlspecialchars($row['status']); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button 
-                                            type="button" 
-                                            class="btn btn-secondary btn-sm btn-view-complaint"
-                                            data-id="<?php echo (int)$row['id']; ?>"
-                                            data-title="<?php echo htmlspecialchars($row['title']); ?>"
-                                            data-category="<?php echo htmlspecialchars($row['category']); ?>"
-                                            data-status="<?php echo htmlspecialchars($row['status']); ?>"
-                                            data-date="<?php echo date('d M Y, h:i A', strtotime($row['created_at'])); ?>"
-                                            data-student-name="<?php echo htmlspecialchars($row['student_name']); ?>"
-                                            data-admission-no="<?php echo htmlspecialchars($row['admission_no']); ?>"
-                                            data-description="<?php echo htmlspecialchars($row['description']); ?>"
-                                        >
-                                            View
-                                        </button>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($complaintsList)): ?>
+                                <tr>
+                                    <td colspan="6" class="empty-state">
+                                        You haven't submitted any complaints yet. Use the form above to lodge your first complaint.
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
-                            <tr id="noFilterResultsRow" style="display: none;">
-                                <td colspan="7" class="empty-state">No complaints match your filter criteria.</td>
-                            </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                            <?php else: ?>
+                                <?php foreach ($complaintsList as $row): 
+                                    $catClass = 'cat-' . strtolower($row['category']);
+                                    $statusClass = 'status-' . strtolower(str_replace(' ', '-', $row['status']));
+                                ?>
+                                    <tr 
+                                        class="complaint-row" 
+                                        data-complaint-id="<?php echo (int)$row['id']; ?>" 
+                                        data-category="<?php echo htmlspecialchars($row['category']); ?>" 
+                                        data-status="<?php echo htmlspecialchars($row['status']); ?>"
+                                    >
+                                        <td class="complaint-id">#CMP-<?php echo str_pad($row['id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                        <td class="complaint-title-cell">
+                                            <strong><?php echo htmlspecialchars($row['title']); ?></strong>
+                                            <div class="complaint-desc-snippet">
+                                                <?php echo htmlspecialchars(mb_strimwidth($row['description'], 0, 80, '...')); ?>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="category-badge <?php echo $catClass; ?>">
+                                                <?php echo htmlspecialchars($row['category']); ?>
+                                            </span>
+                                        </td>
+                                        <td style="color: #64748b; font-size: 13px; white-space: nowrap;">
+                                            <?php echo date('d M Y, h:i A', strtotime($row['created_at'])); ?>
+                                        </td>
+                                        <td>
+                                            <span 
+                                                class="badge status-badge <?php echo $statusClass; ?>" 
+                                                data-complaint-id="<?php echo (int)$row['id']; ?>"
+                                            >
+                                                <?php echo htmlspecialchars($row['status']); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button 
+                                                type="button" 
+                                                class="btn btn-secondary btn-sm btn-view-complaint"
+                                                data-id="<?php echo (int)$row['id']; ?>"
+                                                data-title="<?php echo htmlspecialchars($row['title']); ?>"
+                                                data-category="<?php echo htmlspecialchars($row['category']); ?>"
+                                                data-status="<?php echo htmlspecialchars($row['status']); ?>"
+                                                data-date="<?php echo date('d M Y, h:i A', strtotime($row['created_at'])); ?>"
+                                                data-student-name="<?php echo htmlspecialchars($row['student_name']); ?>"
+                                                data-admission-no="<?php echo htmlspecialchars($row['admission_no']); ?>"
+                                                data-description="<?php echo htmlspecialchars($row['description']); ?>"
+                                            >
+                                                View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        <?php endif; ?>
 
     </main>
 
