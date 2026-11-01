@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['warden_login'])) {
         header('Location: warden.php');
         exit;
     } else {
-        $loginError = 'Invalid Warden ID or Password. (Fixed: warden / warden123)';
+        $loginError = 'Invalid Warden ID or Password.';
     }
 }
 
@@ -130,10 +130,7 @@ if ($isWardenLoggedIn) {
                     </button>
                 </form>
 
-                <div class="auth-hint">
-                    🔑 <strong>Fixed Login Credentials:</strong><br>
-                    ID: <code>warden</code> &bull; Password: <code>warden123</code>
-                </div>
+                
             </div>
 
         <?php else: ?>
