@@ -157,19 +157,19 @@ if ($isWardenLoggedIn) {
             <section class="stats-grid">
                 <div class="stat-card total">
                     <span class="stat-label">Total Complaints</span>
-                    <span class="stat-number"><?php echo (int)$totalCount; ?></span>
+                    <span class="stat-number" id="statTotal"><?php echo (int)$totalCount; ?></span>
                 </div>
                 <div class="stat-card submitted">
                     <span class="stat-label">Submitted (Pending)</span>
-                    <span class="stat-number"><?php echo (int)$submittedCount; ?></span>
+                    <span class="stat-number" id="statSubmitted"><?php echo (int)$submittedCount; ?></span>
                 </div>
                 <div class="stat-card in-progress">
                     <span class="stat-label">In Progress</span>
-                    <span class="stat-number"><?php echo (int)$inProgressCount; ?></span>
+                    <span class="stat-number" id="statInProgress"><?php echo (int)$inProgressCount; ?></span>
                 </div>
                 <div class="stat-card resolved">
                     <span class="stat-label">Resolved</span>
-                    <span class="stat-number"><?php echo (int)$resolvedCount; ?></span>
+                    <span class="stat-number" id="statResolved"><?php echo (int)$resolvedCount; ?></span>
                 </div>
             </section>
 
@@ -177,8 +177,36 @@ if ($isWardenLoggedIn) {
             <section>
                 <div style="margin-bottom: 1rem;">
                     <h3 style="font-size: 1.15rem; color: #0f172a; margin: 0;">
-                        📋 All Hostel Complaints (<strong><?php echo count($allComplaints); ?></strong>)
+                        📋 All Hostel Complaints (<strong><span id="visibleComplaintsCount"><?php echo count($allComplaints); ?></span></strong>)
                     </h3>
+                </div>
+
+                <!-- Filter Bar -->
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <strong style="color: #334155;">Filter Complaints:</strong>
+                    </div>
+                    <div class="filter-controls">
+                        <div class="filter-group">
+                            <label for="filterCategory">Category:</label>
+                            <select id="filterCategory" class="filter-select">
+                                <option value="">All Categories</option>
+                                <option value="Electrical">⚡ Electrical</option>
+                                <option value="Plumbing">🚰 Plumbing</option>
+                                <option value="Network">🌐 Network</option>
+                                <option value="Housekeeping">🧹 Housekeeping</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="filterStatus">Status:</label>
+                            <select id="filterStatus" class="filter-select">
+                                <option value="">All Statuses</option>
+                                <option value="Submitted">Submitted</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Resolved">Resolved</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Complaints Table -->

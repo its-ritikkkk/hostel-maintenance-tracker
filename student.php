@@ -366,6 +366,34 @@ if ($isStudentLoggedIn) {
                     </h3>
                 </div>
 
+                <!-- Filter Bar -->
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <strong style="color: #334155;">Filter Complaints:</strong>
+                    </div>
+                    <div class="filter-controls">
+                        <div class="filter-group">
+                            <label for="filterCategory">Category:</label>
+                            <select id="filterCategory" class="filter-select">
+                                <option value="">All Categories</option>
+                                <option value="Electrical">⚡ Electrical</option>
+                                <option value="Plumbing">🚰 Plumbing</option>
+                                <option value="Network">🌐 Network</option>
+                                <option value="Housekeeping">🧹 Housekeeping</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="filterStatus">Status:</label>
+                            <select id="filterStatus" class="filter-select">
+                                <option value="">All Statuses</option>
+                                <option value="Submitted">Submitted</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Resolved">Resolved</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Table -->
                 <div class="table-responsive">
                     <table class="complaint-table" id="complaintsTable">
