@@ -136,7 +136,7 @@ try {
         ]);
         exit;
     } else {
-        $_SESSION['flash_success'] = "Complaint #{$complaintId} submitted successfully! Status: Submitted.";
+        $_SESSION['flash_success'] = "Complaint Submitted Successfully!";
         header('Location: ../student.php');
         exit;
     }
