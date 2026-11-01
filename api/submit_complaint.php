@@ -16,6 +16,23 @@ $isJsonRequest = (
     isset($_POST['is_ajax'])
 );
 
+// Require authenticated student session to submit complaints
+if (empty($_SESSION['student_id'])) {
+    if ($isJsonRequest) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(401);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Unauthorized: Please log in as a student to submit a complaint.'
+        ]);
+        exit;
+    } else {
+        $_SESSION['flash_error'] = 'Please log in to submit a complaint.';
+        header('Location: ../student.php');
+        exit;
+    }
+}
+
 // If JSON body was sent, parse it
 if (!empty($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) {
     $rawInput = file_get_contents('php://input');
@@ -24,39 +41,21 @@ if (!empty($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'applic
     $data = $_POST;
 }
 
-// Retrieve and sanitize inputs
-$name         = trim($data['name'] ?? '');
-$admission_no = strtoupper(trim($data['admission_no'] ?? ''));
-$email        = trim($data['email'] ?? '');
+// Retrieve student identity strictly from authenticated session
+$studentId    = (int)$_SESSION['student_id'];
+$name         = $_SESSION['student_name'] ?? trim($data['name'] ?? '');
+$admission_no = $_SESSION['student_admission_no'] ?? strtoupper(trim($data['admission_no'] ?? ''));
+$email        = $_SESSION['student_email'] ?? trim($data['email'] ?? '');
+
 $title        = trim($data['title'] ?? '');
 $category     = trim($data['category'] ?? '');
 $description  = trim($data['description'] ?? '');
-
-// Fallback to active student session if fields were omitted by client
-if (empty($name) && !empty($_SESSION['student_name'])) {
-    $name = $_SESSION['student_name'];
-}
-if (empty($admission_no) && !empty($_SESSION['student_admission_no'])) {
-    $admission_no = $_SESSION['student_admission_no'];
-}
-if (empty($email) && !empty($_SESSION['student_email'])) {
-    $email = $_SESSION['student_email'];
-}
 
 $allowedCategories = ['Electrical', 'Plumbing', 'Network', 'Housekeeping'];
 
 // Server-side validation
 $errors = [];
 
-if (empty($name)) {
-    $errors[] = 'Student name is required.';
-}
-if (empty($admission_no)) {
-    $errors[] = 'Admission number is required.';
-}
-if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    $errors[] = 'A valid email address is required.';
-}
 if (empty($title)) {
     $errors[] = 'Complaint title is required.';
 }
@@ -86,36 +85,13 @@ if (!empty($errors)) {
 try {
     $pdo = getDbConnection();
 
-    // Step 1: Look up existing student by Admission Number
-    $stmtStudent = $pdo->prepare('SELECT id, name, email FROM students WHERE admission_no = ?');
-    $stmtStudent->execute([$admission_no]);
-    $student = $stmtStudent->fetch();
-
-    if ($student) {
-        $studentId = (int)$student['id'];
-        // Keep student record up to date with any newly entered name/email
-        $stmtUpdateStudent = $pdo->prepare('UPDATE students SET name = ?, email = ? WHERE id = ?');
-        $stmtUpdateStudent->execute([$name, $email, $studentId]);
-    } else {
-        // Register new student in minimal students table
-        $stmtInsertStudent = $pdo->prepare('INSERT INTO students (name, admission_no, email) VALUES (?, ?, ?)');
-        $stmtInsertStudent->execute([$name, $admission_no, $email]);
-        $studentId = (int)$pdo->lastInsertId();
-    }
-
-    // Step 2: Insert the complaint with initial status 'Submitted'
+    // Insert the complaint strictly linked to authenticated student session ID
     $stmtComplaint = $pdo->prepare(
         'INSERT INTO complaints (student_id, title, description, category, status, created_at) 
          VALUES (?, ?, ?, ?, "Submitted", NOW())'
     );
     $stmtComplaint->execute([$studentId, $title, $description, $category]);
     $complaintId = (int)$pdo->lastInsertId();
-
-    // Store student identity in session so their dashboard stays in context
-    $_SESSION['student_admission_no'] = $admission_no;
-    $_SESSION['student_name'] = $name;
-    $_SESSION['student_email'] = $email;
-    $_SESSION['student_id'] = $studentId;
 
     if ($isJsonRequest) {
         header('Content-Type: application/json; charset=utf-8');
@@ -156,4 +132,3 @@ try {
         exit;
     }
 }
-?>

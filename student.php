@@ -33,8 +33,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auth_type'])) {
             $stmt->execute([$adm]);
             $student = $stmt->fetch();
 
-            // Verify password using password_verify (no default pass)
-            if ($student && !empty($student['password']) && password_verify($pwd, $student['password'])) {
+            // Direct plain text password verification (with fallback for previously hashed accounts)
+            if ($student && !empty($student['password']) && ($student['password'] === $pwd || password_verify($pwd, $student['password']))) {
+                // If it was previously hashed, update to plain text
+                if ($student['password'] !== $pwd) {
+                    $pdo->prepare('UPDATE students SET password = ? WHERE id = ?')->execute([$pwd, $student['id']]);
+                }
+
                 // Unset warden session if active
                 unset($_SESSION['warden_logged_in']);
 
@@ -71,10 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auth_type'])) {
                 if ($checkStmt->fetch()) {
                     $authError = 'This Admission Number or Email is already registered. Please Login.';
                 } else {
-                    // Hash password and insert into students table
-                    $hashedPw = password_hash($pwd, PASSWORD_DEFAULT);
+                    // Insert plain text password into students table (no hashing)
                     $insertStmt = $pdo->prepare('INSERT INTO students (name, admission_no, email, password) VALUES (?, ?, ?, ?)');
-                    $insertStmt->execute([$name, $adm, $email, $hashedPw]);
+                    $insertStmt->execute([$name, $adm, $email, $pwd]);
                     $newStudentId = (int)$pdo->lastInsertId();
 
                     // Unset warden session if active

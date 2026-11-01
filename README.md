@@ -16,7 +16,7 @@ It eliminates error-prone physical complaint registers and unorganized messaging
 1. **Student Portal (`student.php`):**
    - **Strict Institutional Identity:** Enforces official IIT (ISM) Dhanbad student emails on registration in the format: `24JE0329@iitism.ac.in` (`^[0-9]{2}[a-zA-Z]{2}[0-9]{4}@iitism\.ac\.in$`).
    - **Convenient Auto-Suggest:** Real-time JavaScript listener automatically populates the email field as the student enters their admission number.
-   - **Cryptographic Security:** Passwords are hashed using BCrypt via `password_hash()` and verified via `password_verify()`.
+   - **Direct Password Verification:** Passwords are stored and verified directly for simple lab demonstration.
    - **Absolute Data Privacy:** Logged-in students can view **strictly their own complaints** (`WHERE c.student_id = ?`). Non-authenticated visitors see only the login/signup card.
    - **Ticket Lodging:** Direct issue reporting across 4 categories: *Electrical*, *Plumbing*, *Network*, and *Housekeeping* with auto-linked student details.
    - **Inspection Modal:** Modal dialog to view complete complaint details without leaving the page.
@@ -128,7 +128,7 @@ tracker/
 ## 8. Security Implementation
 
 - **SQL Injection Prevention:** 100% parameterized prepared statements via PDO with `PDO::ATTR_EMULATE_PREPARES => false`. Zero dynamic string concatenation in SQL queries.
-- **Password Security:** Cryptographic hashing using BCrypt algorithms (`password_hash` with `PASSWORD_DEFAULT`).
+- **Direct Authentication:** Direct credential comparison without complex hashing for simplified demonstration.
 - **Cross-Site Scripting (XSS) Mitigation:** All dynamic database values pass through `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')` before HTML rendering.
 - **Session & Privilege Isolation:** Explicit role segregation: student logins unset warden sessions, and warden logins unset student sessions.
 - **CSS Margin Collapse Fix:** Employs `display: flow-root` on container elements to prevent vertical margin collapsing between parent and child elements.
