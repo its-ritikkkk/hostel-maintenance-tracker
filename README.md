@@ -1,161 +1,186 @@
 # Hostel Maintenance and Complaint Tracker
 
 **Hostel Scope:** Aquamarine Hostel, Indian Institute of Technology (ISM) Dhanbad  
-**Course:** Web Development & Software Engineering Academic Lab Project  
-**Technology Stack:** PHP 8.2 (Procedural/PDO), MariaDB 10.4 / MySQL, Vanilla JavaScript (ES6+), HTML5, and CSS3 Flexbox  
-*(Pure native stack — Zero external frameworks, libraries, or dependencies).*
+**Course / Project:** Web Development & Software Engineering Academic Project  
+**Technology Stack:** PHP 8.2 (Procedural / PDO), MariaDB 10.4 / MySQL, Vanilla JavaScript (ES6+), HTML5, CSS3 Flexbox  
+*(100% Native Implementation — Zero external frameworks, libraries, or npm dependencies).*
 
 ---
 
-## 1. Project Overview
+## 1. Description of Code Files
 
-The **Hostel Maintenance and Complaint Tracker** is a specialized, role-segregated facility management and helpdesk system engineered exclusively for **Aquamarine Hostel at IIT (ISM) Dhanbad**. 
-
-It eliminates error-prone physical complaint registers and unorganized messaging by providing two dedicated portals:
-
-1. **Student Portal (`student.php`):**
-   - **Strict Institutional Identity:** Enforces official IIT (ISM) Dhanbad student emails on registration in the format: `24JE0329@iitism.ac.in` (`^[0-9]{2}[a-zA-Z]{2}[0-9]{4}@iitism\.ac\.in$`).
-   - **Convenient Auto-Suggest:** Real-time JavaScript listener automatically populates the email field as the student enters their admission number.
-   - **Direct Password Verification:** Passwords are stored and verified directly for simple lab demonstration.
-   - **Absolute Data Privacy:** Logged-in students can view **strictly their own complaints** (`WHERE c.student_id = ?`). Non-authenticated visitors see only the login/signup card.
-   - **Ticket Lodging:** Direct issue reporting across 4 categories: *Electrical*, *Plumbing*, *Network*, and *Housekeeping* with auto-linked student details.
-   - **Inspection Modal:** Modal dialog to view complete complaint details without leaving the page.
-
-2. **Warden Portal (`warden.php`):**
-   - **Administrative Authentication:** Dedicated warden login credentials (`warden` / `warden123`) with automatic session isolation (clears student session).
-   - **Real-Time Workload Metrics:** Overview cards charting **Total Complaints**, **Submitted (Pending)**, **In Progress**, and **Resolved**.
-   - **Master Complaint Overview:** Full registry of all hostel resident complaints with student name, admission number, category badge, and formatted submission date.
-   - **Asynchronous Status Updates:** In-line status dropdown changes immediately update MariaDB using asynchronous `fetch()` without full page reloads.
-
-3. **Direct Root Router (`index.php`):**
-   - Seamless root routing that evaluates active session state: automatically forwards authenticated wardens to `warden.php` and students/visitors to `student.php`.
-
----
-
-## 2. Required Software & Prerequisites
-
-- **XAMPP** (with Apache 2.4+ and MariaDB/MySQL 10.4+, PHP 7.4 or PHP 8.x).
-- **Web Browser** (Google Chrome, Mozilla Firefox, Microsoft Edge, or Safari).
-- **Python 3.x** *(Optional, required only for recompiling the 5-page PDF report)*.
-
----
-
-## 3. Database Setup (phpMyAdmin)
-
-1. Open the XAMPP Control Panel and start **Apache** and **MySQL**.
-2. Open your browser and navigate to `http://localhost/phpmyadmin`.
-3. In the left panel, click **New** or open the **Databases** tab.
-4. Create a database named: `hostel_complaints` (Collation: `utf8mb4_general_ci`).
-5. Select the `hostel_complaints` database from the sidebar.
-6. Click on the **Import** tab.
-7. Click **Choose File** and select:
-   ```
-   database/hostel_complaints.sql
-   ```
-8. Click **Import** at the bottom. Both `students` and `complaints` tables with demo data will be created.
-
----
-
-## 4. Running the Application on Localhost
-
-1. Ensure the project directory is located in your XAMPP web root:
-   ```
-   C:\xampp\php\htdocs\tracker\
-   ```
-   *(or `C:\xampp\htdocs\tracker\` depending on your local installation)*
-2. In your browser, open:
-   ```
-   http://localhost/tracker/
-   ```
-3. You will be automatically routed to the **Student Portal** (or **Warden Portal** if logged in as warden).
-
----
-
-## 5. System Credentials & Roles
-
-| Role | Access URL | Credentials | Capabilities |
-| :--- | :--- | :--- | :--- |
-| **Student** | `student.php` | Registered Admission No &amp; Password<br>*(e.g., `24JE0329`)* | Register account, lodge tickets, track status of own tickets. |
-| **Warden** | `warden.php` | ID: `warden`<br>Password: `warden123` | View all hostel complaints, view metrics, change status to In Progress / Resolved. |
-
----
-
-## 6. Email Format & Validation Rules
-
-On student signup, institute email format is strictly enforced:
-
-* **Format:** `24JE0329@iitism.ac.in`
-* **Regex Pattern:** `/^[0-9]{2}[a-zA-Z]{2}[0-9]{4}@iitism\.ac\.in$/i`
-  * `^[0-9]{2}`: 2 digits for cohort year (e.g., `24`)
-  * `[a-zA-Z]{2}`: 2 letters for branch/entry program (e.g., `JE`)
-  * `[0-9]{4}`: 4 digits for student roll number (e.g., `0329`)
-  * `@iitism\.ac\.in$`: Official institute domain
-* **Enforcement:** Client-side via HTML5 `pattern` attribute + Server-side via PHP `preg_match()`.
-
----
-
-## 7. Project Architecture & File Directory
+This project is organized into presentation views, RESTful API endpoints, shared configurations, client-side assets, and database schemas:
 
 ```
 tracker/
-│
-├── index.php                 # Direct session-aware router (routes to student.php or warden.php)
-├── student.php               # Student Portal: Centered Auth (Login/Signup) & Isolated Complaint Dashboard
-├── warden.php                # Warden Portal: Metric cards, master complaints table & inline status updates
+├── index.php                 # Root application router and session redirector
+├── student.php               # Student Portal (Authentication, Ticket Lodging & My Complaints)
+├── warden.php                # Warden Portal (Administrative Dashboard, Metrics & Status Updates)
 │
 ├── config/
-│   └── db.php                # Centralized PDO connection with prepared statements & auto-migration
+│   └── db.php                # Database connection factory via PDO with prepared statements
 │
 ├── api/
-│   ├── submit_complaint.php  # Validates and stores new complaints linked to student session
-│   ├── update_status.php     # Warden-only API endpoint to update ticket status via AJAX
-│   └── get_statuses.php      # Lightweight JSON endpoint for complaint statuses
+│   ├── submit_complaint.php  # Handles new complaint submissions (Session-authenticated)
+│   ├── update_status.php     # Updates complaint resolution status in MariaDB (Warden-only)
+│   └── get_statuses.php      # Lightweight JSON endpoint returning complaint statuses
 │
 ├── assets/
-│   ├── style.css             # Vanilla CSS layout with flexbox centering & display: flow-root
-│   └── script.js             # Client-side JavaScript (Fetch API status updates, modal popup controller)
+│   ├── style.css             # Application stylesheet (Flexbox centering, badges, modal, clean tables)
+│   └── script.js             # Client-side JavaScript (Fetch API status updates, modal popup logic)
 │
-├── database/
-│   └── hostel_complaints.sql # MariaDB schema definition and sample testing data
-│
-├── generate_report_pdf.py    # Headless Chrome script compiling the 5-page PDF report
-├── project_report_source.html# Formatted HTML source for the 5-page project documentation
-└── Hostel_Maintenance_Tracker_Project_Report.pdf # Comprehensive 5-page publication-grade PDF report
+└── database/
+    └── hostel_complaints.sql # MariaDB schema definitions and testing seed records
 ```
 
+### Detailed File Responsibilities
+
+| File Path | Component | Functional Description |
+| :--- | :--- | :--- |
+| **`index.php`** | **Root Router** | Acts as the primary application entry point at `http://localhost/tracker/`. Evaluates the user's active session state: automatically forwards authenticated wardens to `warden.php` and students or unauthenticated visitors directly to `student.php`, eliminating redundant public landing pages. |
+| **`student.php`** | **Student Portal View** | **Dual-state user interface:**<br>1. *Unauthenticated State:* Displays a horizontally and vertically centered authentication card for **Student Login** and **New Student Sign Up** with strict IIT (ISM) email validation (`24JE0329@iitism.ac.in`).<br>2. *Authenticated State:* Displays the student session badge, complaint lodging form with auto-linked student information, and a personalized **My Maintenance Complaints** table showing strictly the logged-in student's complaints. |
+| **`warden.php`** | **Warden Portal View** | **Administrative command console:**<br>1. *Login State:* Centered administrative login card requiring fixed credentials (`warden` / `warden123`).<br>2. *Dashboard State:* Real-time metric cards (*Total*, *Submitted*, *In Progress*, *Resolved*) and the master complaints registry showing all hostel issues with in-line status update dropdowns and ticket inspection buttons. |
+| **`config/db.php`** | **Database Configuration** | Implements `getDbConnection()` returning an active PDO instance connected to MariaDB (`127.0.0.1:3306`, database `hostel_complaints`). Sets `PDO::ATTR_EMULATE_PREPARES => false` for genuine SQL Injection immunity and `PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION` for structured error handling. Also executes dynamic schema verification for table structure. |
+| **`api/submit_complaint.php`** | **API Controller** | Receives and validates complaint submissions. Enforces session authentication (`$_SESSION['student_id']`) so only logged-in students can lodge tickets. Binds tickets strictly to the verified student ID, validates category against allowed whitelist (`Electrical`, `Plumbing`, `Network`, `Housekeeping`), and writes to the `complaints` table with initial status `Submitted`. |
+| **`api/update_status.php`** | **API Controller** | Role-protected administrative API endpoint. Verifies active warden session (`$_SESSION['warden_logged_in']`), validates target status (`Submitted`, `In Progress`, `Resolved`), and executes an atomic `UPDATE` query on MariaDB. Returns JSON response for immediate client-side badge updating. |
+| **`api/get_statuses.php`** | **API Controller** | Returns complaint IDs and current statuses as lightweight JSON. Scoped automatically to the active student session (or all tickets for wardens), enabling client-side status synchronization. |
+| **`assets/style.css`** | **Styles & Layout** | Complete native CSS design without external frameworks. Features:<br>• Viewport centering for authentication forms (`.main-wrapper.auth-main`)<br>• CSS margin-collapse resolution via `display: flow-root`<br>• Sticky footer pinning via flexbox layout (`min-height: 100vh; margin-top: auto`)<br>• Color-coded category tags and status badges (*Submitted*, *In Progress*, *Resolved*)<br>• Clean, responsive complaint tables and modal overlay styles. |
+| **`assets/script.js`** | **Client-side Controller** | Pure ES6+ JavaScript handling client interactivity:<br>• In-line status change listener sending asynchronous `fetch()` requests to `api/update_status.php` with instant badge updates without full page reload<br>• Modal dialog controller reading row `data-*` attributes to display full complaint descriptions in a focused popup overlay. |
+| **`database/hostel_complaints.sql`** | **Database Definition** | Relational SQL schema for MariaDB/MySQL containing `CREATE TABLE` statements for `students` and `complaints` with foreign keys (`ON DELETE CASCADE`), indexes, and realistic demo records for Aquamarine Hostel. |
+
 ---
 
-## 8. Security Implementation
+## 2. Steps to Deploy and Execute the Code
 
-- **SQL Injection Prevention:** 100% parameterized prepared statements via PDO with `PDO::ATTR_EMULATE_PREPARES => false`. Zero dynamic string concatenation in SQL queries.
-- **Direct Authentication:** Direct credential comparison without complex hashing for simplified demonstration.
-- **Cross-Site Scripting (XSS) Mitigation:** All dynamic database values pass through `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')` before HTML rendering.
-- **Session & Privilege Isolation:** Explicit role segregation: student logins unset warden sessions, and warden logins unset student sessions.
-- **CSS Margin Collapse Fix:** Employs `display: flow-root` on container elements to prevent vertical margin collapsing between parent and child elements.
+Follow these step-by-step instructions to set up, deploy, and run the project locally using XAMPP on Windows, Linux, or macOS.
+
+### Step 1: Prerequisites & Software Setup
+Ensure you have installed:
+1. **XAMPP** (or any LAMP/WAMP/MAMP bundle) with:
+   - **PHP 7.4+** or **PHP 8.x**
+   - **Apache 2.4+**
+   - **MariaDB 10.4+** or **MySQL 5.7+**
+2. A modern web browser (Google Chrome, Mozilla Firefox, Microsoft Edge, or Safari).
 
 ---
 
-## 9. Lab Evaluation & Demonstration Guide
+### Step 2: Deploy Project Files to the Web Server
+1. Clone or copy the `tracker` project folder into your XAMPP web root (`htdocs` directory):
+   - **Windows Default:** `C:\xampp\htdocs\tracker\` *(or `C:\xampp\php\htdocs\tracker\`)*
+   - **Linux Default:** `/opt/lampp/htdocs/tracker/`
+   - **macOS Default:** `/Applications/XAMPP/xamppfiles/htdocs/tracker/`
+2. Verify that the file structure matches the tree described in Section 1.
 
-1. **Verify Root Routing & Centered Login:**
-   - Open `http://localhost/tracker/`. Confirm it immediately redirects to `student.php`.
-   - Observe that the Login/Sign Up card is centered horizontally and vertically in the viewport between header and footer.
-2. **Student Signup & Email Validation Test:**
-   - Switch to **New Student Sign Up**.
-   - Type Admission Number: `24JE0329`. Notice the email input automatically suggests `24je0329@iitism.ac.in`.
-   - Try registering with `student@gmail.com` &rarr; Notice it is rejected with a format error.
-   - Enter `24JE0329@iitism.ac.in` and complete sign up &rarr; Logs in directly to student dashboard with zero success banner clutter.
-3. **Submit a Complaint:**
-   - Notice student name and admission number are pre-filled as read-only.
-   - Select Category (e.g. *Electrical*), enter Title and Description, click **Submit Complaint**.
-   - Notice the ticket appears in **My Maintenance Complaints**.
-4. **Student Privacy Verification:**
-   - Verify that the table displays strictly complaints logged by this student.
-5. **Warden Management & In-line Status Update:**
-   - Open `http://localhost/tracker/warden.php` in a second window or browser.
-   - Login with ID `warden` and Password `warden123`.
-   - View the metrics overview cards (Total, Submitted, In Progress, Resolved).
-   - In the master table, locate the student's ticket and change the status dropdown to **In Progress** or **Resolved**.
-   - Observe that the status badge updates instantly on the page without full page reload.
-6. **Project Report PDF:**
-   - Open `Hostel_Maintenance_Tracker_Project_Report.pdf` to review the 5-page technical report covering all system specifications and verification matrices.
+---
+
+### Step 3: Start Web Server and Database Services
+1. Open the **XAMPP Control Panel**.
+2. Click **Start** next to **Apache**.
+3. Click **Start** next to **MySQL**.
+4. Ensure both service status indicators turn green.
+
+---
+
+### Step 4: Create and Import the Database
+1. Open your web browser and navigate to **phpMyAdmin**:
+   ```
+   http://localhost/phpmyadmin/
+   ```
+2. Click on the **Databases** tab at the top.
+3. Under **Create database**:
+   - Database name: `hostel_complaints`
+   - Collation: `utf8mb4_general_ci`
+   - Click **Create**.
+4. Select the newly created `hostel_complaints` database from the left sidebar.
+5. Click on the **Import** tab in the top navigation bar.
+6. Click **Choose File** and browse to the project's SQL file:
+   ```
+   tracker/database/hostel_complaints.sql
+   ```
+7. Click **Import** at the bottom of the page.
+8. Verify that both `students` and `complaints` tables are created with sample records.
+
+---
+
+### Step 5: Verify Database Connection Configuration
+Open `config/db.php` and verify the database connection credentials match your local setup:
+```php
+$db_host = '127.0.0.1';
+$db_port = '3306';
+$db_name = 'hostel_complaints';
+$db_user = 'root';
+$db_pass = ''; // Default XAMPP password is empty
+```
+*(If your local MySQL root account uses a password, specify it in `$db_pass`).*
+
+---
+
+### Step 6: Execute the Application
+1. Open your web browser and navigate to:
+   ```
+   http://localhost/tracker/
+   ```
+2. `index.php` will automatically route you to the **Student Portal** (`student.php`).
+
+---
+
+## 3. User Roles, Credentials & Workflows
+
+### Role 1: Student Workflow (`student.php`)
+1. **Registration (New Student Sign Up):**
+   - Click **New Student Sign Up**.
+   - Enter **Full Name** (e.g. `Ritik Kumar`).
+   - Enter **Admission Number** (e.g. `24JE0329`).
+   - Notice the **Institute Email** field automatically suggests `24je0329@iitism.ac.in`.
+   - *Note on Email Validation:* The email format strictly enforces the IIT (ISM) format: `^[0-9]{2}[a-zA-Z]{2}[0-9]{4}@iitism\.ac\.in$`.
+   - Enter a password and click **Create Account & Login**.
+2. **Lodging a Complaint:**
+   - Once logged in, student details (Name, Admission Number, Email) are pre-filled as read-only.
+   - Select a category (*Electrical*, *Plumbing*, *Network*, or *Housekeeping*).
+   - Enter Room / Location & Issue title (e.g., `Room B-204 Ceiling Fan Regulator`).
+   - Enter a detailed description and click **Submit Complaint**.
+3. **Tracking Complaints (Data Privacy):**
+   - The submitted ticket appears immediately in the **My Maintenance Complaints** table with default status `Submitted`.
+   - Students see **strictly their own tickets** (`WHERE c.student_id = ?`). Other students' tickets are completely hidden.
+   - Click **View** on any row to inspect complete details in the modal dialog.
+
+---
+
+### Role 2: Warden Workflow (`warden.php`)
+1. **Warden Login:**
+   - Click **Warden Portal** in the navigation header.
+   - Fixed Credentials:
+     - **Warden ID:** `warden`
+     - **Password:** `warden123`
+   - Click **Login as Warden**.
+2. **Managing Complaints:**
+   - Review top metric summary cards: **Total Complaints**, **Submitted**, **In Progress**, and **Resolved**.
+   - Review all hostel complaints logged across Aquamarine Hostel.
+   - **Update Status:** Change the dropdown on any complaint row from `Submitted` &rarr; `In Progress` &rarr; `Resolved`.
+   - The status updates asynchronously in MariaDB via AJAX `fetch()` and reflects immediately on the badge.
+3. **Logging Out:**
+   - Click **Logout** in the navigation bar to destroy the session.
+
+---
+
+## 4. Security & Architecture Highlights
+
+1. **SQL Injection Immunity:** All database interactions across all pages use PDO prepared statements with bound parameters (`$stmt->execute([$params])`). Emulated prepares are disabled.
+2. **Cross-Site Scripting (XSS) Prevention:** All dynamic data rendered into HTML is sanitized using `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')`.
+3. **Session Privilege Segregation:** Logging in as a warden automatically terminates active student sessions, and logging in as a student clears warden sessions, preventing cross-role privilege confusion.
+4. **Endpoint Protection:** `api/submit_complaint.php` strictly verifies `$_SESSION['student_id']` and rejects unauthorized POST submissions; `api/update_status.php` strictly verifies `$_SESSION['warden_logged_in']`.
+5. **CSS Margin Collapse Fix:** Employs `display: flow-root` on parent containers to ensure child margins render predictably without vertical collapsing.
+
+---
+
+## 5. Troubleshooting Common Issues
+
+* **Database Connection Error (`Could not connect to MariaDB`):**
+  - Ensure MySQL service is running in XAMPP Control Panel.
+  - Verify that database `hostel_complaints` has been imported in phpMyAdmin.
+  - Check host and port in `config/db.php` (`127.0.0.1` on port `3306`).
+* **Port Conflict on Apache (Port 80 / 443 in use):**
+  - In XAMPP Control Panel &rarr; Click **Config** on Apache &rarr; `httpd.conf` &rarr; Change `Listen 80` to `Listen 8080`.
+  - Access the application at: `http://localhost:8080/tracker/`.
+* **Invalid Email Format Error on Signup:**
+  - Institute email must strictly match the IIT (ISM) format: `24JE0329@iitism.ac.in` (2 digits + 2 letters + 4 digits + `@iitism.ac.in`).
