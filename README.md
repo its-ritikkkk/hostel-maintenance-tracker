@@ -1,9 +1,9 @@
 # Hostel Maintenance and Complaint Tracker
 
 **Hostel Scope:** Aquamarine Hostel, Indian Institute of Technology (ISM) Dhanbad  
-**Course / Project:** Web Development & Software Engineering Academic Project  
+
 **Technology Stack:** PHP 8.2 (Procedural / PDO), MariaDB 10.4 / MySQL, Vanilla JavaScript (ES6+), HTML5, CSS3 Flexbox  
-*(100% Native Implementation — Zero external frameworks, libraries, or npm dependencies).*
+
 
 ---
 
